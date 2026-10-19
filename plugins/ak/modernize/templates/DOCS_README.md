@@ -89,8 +89,9 @@ fe_mode: Greenfield` — a normal state, not an error.
 
 Two kinds of file. **This folder holds the project's own state**: its configuration, its
 registry, its issue log and every per-screen artifact - the files a team shares and edits.
-**The pipeline manuals ship with the `ak` plugin** (`modernize/docs/` in the plugin) at the
-version `KIT_VERSION` names, and are not copied here; the skills read them from the plugin. A
+**The pipeline manuals ship with the `ak` plugin** (`modernize/docs/` in the plugin), at the
+installed version - `KIT_VERSION` is the lowest one this project accepts - and are not copied
+here; the skills read them from the plugin. A
 manual this project has to change is kept here under the same name, and is read instead.
 
 | File | Where | Audience | Role |
