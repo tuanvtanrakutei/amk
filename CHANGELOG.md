@@ -1,5 +1,48 @@
 # Changelog
 
+## [2.18.0] - 2026-10-19
+
+Pull requests #117, #119, #120 and #121. **A bootstrapped project runs:** its Docker stack
+comes up with a local database, the checks run inside it, and the pipeline manuals stay in
+the plugin instead of being copied into every project. The repository is renamed
+`tuanvtanrakutei/amk`.
+
+### Added
+
+- **`/ak:dev-stack`** and `modernize/scripts/dev_stack.py` (`plan`, `up`, `status`, `down`)
+  (A95).
+  - Reads the compose file through `docker compose config --format json`.
+  - Creates the external networks the compose file expects.
+  - Writes a gitignored `docker-compose.override.yml` with a local PostgreSQL and the backend
+    pointed at it. Refuses an override git would track.
+  - Builds, starts, makes and applies migrations, and checks the health path and the
+    frontend page.
+- `PROJECT_CONFIG.md` §12 Development Stack: `COMPOSE_FILE`, `BACKEND_SERVICE`,
+  `FRONTEND_SERVICE`, `DEV_DB`, `HEALTH_PATH`. `LINT_CMD`, `TEST_CMD` and `FE_LINT_CMD` run in
+  the containers (A95).
+- `KIT_VERSION` in `PROJECT_CONFIG.md`. Pre-flight compares it with the installed plugin (A96).
+
+### Changed
+
+- **Bootstrap no longer copies the nine pipeline manuals** (A96). The screen skills read them
+  from the plugin, and read a project copy of the same name first.
+- `bootstrap-project`:
+  - Step 4b brings the stack up; Step 5 runs the checks in it.
+  - It warns against host dependencies in folders the stack mounts.
+- `MASTER_WORKFLOW.md` pre-flight:
+  - Step 5 accepts a workspace without `run-state.json`, gated by `$ak conformance`.
+  - New step 9 checks that the stack is up.
+- The repository is `tuanvtanrakutei/amk`. Install with
+  `/plugin marketplace add tuanvtanrakutei/amk` then `/plugin install ak@access-modernization-kit`.
+  The marketplace keeps its name, and an install made under the former repository name keeps
+  updating.
+
+### Fixed
+
+- `$ak clean` keeps a path whose name has parentheses, and drops the `)` a Markdown link
+  appends.
+- The README's install command named `ak@amk`, a marketplace that does not exist.
+
 ## [2.17.0] - 2026-10-15
 
 One pull request (#115). **Bootstrap seeds a project's screen registry from a workspace built
