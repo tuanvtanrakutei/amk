@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.19.0] - 2026-10-19
+
+One pull request (#123). **A project's UI design document is a configuration row the frontend
+stages read** (A97).
+
+### Added
+
+- **`UI_DESIGN_DOC`** in `PROJECT_CONFIG.md` §4. It names what a screen looks like:
+  - theme tokens;
+  - the legacy colours that carry a meaning, and their replacements;
+  - tables and pagination;
+  - which component replaces each legacy control.
+
+  `plan-screen` applies it to the To-be layout; `code-screen` reads it for Stage 3b.
+- **`templates/UI_DESIGN_TEMPLATE.md`**. Bootstrap Step 2b offers a draft built from the frontend's
+  theme file, its component library configuration and the colours the To-be register carries.
+- `validate-docs` reports a `FE_PATTERN_DOCS` or `UI_DESIGN_DOC` file that is not there
+  (`checklist-doc-missing`).
+
+### Changed
+
+- `FRONTEND_CODING.md` §12 and §15: a legacy colour that signals a state is reproduced through
+  the design document's token, never as a raw value; a colour the document does not list is
+  decoration.
+
 ## [2.18.0] - 2026-10-19
 
 Pull requests #117, #119, #120 and #121. **A bootstrapped project runs:** its Docker stack
