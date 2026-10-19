@@ -71,6 +71,7 @@ One file per screen: `{{DOCS_DIR}}/Coding_Records/{screen}.md`, matching the `sc
 
 - **Screen**: {screen}
 - **Module**: {{BACKEND_ROOT}}/{module}
+- **Kit version**: the installed `ak` plugin's version when this record was written
 - **Backend status**: implemented | partial | blocked | not_started
 - **Frontend status**: implemented | partial | blocked | not_started
 - **Backend lint**: pass | fail | not run

@@ -15,7 +15,7 @@ Copy this file to your project's documentation root. Keep it under version contr
 | `PROJECT_NAME` | `{{PROJECT_NAME}}` | Human-readable, e.g. "Legacy Replacement — Order Receiving" |
 | `SUBSYSTEM_CODE` | `{{SUBSYSTEM_CODE}}` | Short code used in paths and identifiers, e.g. `A99` |
 | `DOCS_DIR` | `{{DOCS_DIR}}` | Where per-screen artifacts live: `docs`, or `<project>_docs` only if the repository already has a `docs/` of its own. Keep it out of any Docker build context (`.dockerignore`) |
-| `KIT_VERSION` | `{{KIT_VERSION}}` | The `ak` plugin version this project's screens are planned against. The pipeline manuals are read from the installed plugin, so pre-flight compares this with the installed version and says what changed |
+| `KIT_VERSION` | `{{KIT_VERSION}}` | The **lowest** `ak` plugin version this project runs on, not a pin: the pipeline manuals are read from the installed plugin, so a newer install is used as it is. Pre-flight stops on an older one. Raise it only when the project starts depending on something a release added, not on every release |
 | `SCREEN_NAME_LANG` | `{{SCREEN_NAME_LANG}}` | Language of screen names used as filenames, e.g. `ja`, `en` |
 
 ## 2. Legacy Source

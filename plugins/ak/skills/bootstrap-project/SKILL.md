@@ -77,9 +77,11 @@ directory:
 resolve from `PROJECT_CONFIG.md` when they are read. Earlier versions copied all nine into each
 project so that an upgrade could not change the manual a half-finished screen was planned
 against. A developer opening the project then saw nine kit files beside the project's own and
-could not tell which were the project's to edit. The pin is now the `KIT_VERSION` row: write the
-installed plugin's version (`${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`) into it, and
-pre-flight compares the two before every screen.
+could not tell which were the project's to edit. The `KIT_VERSION` row is a floor, not a pin:
+write the installed plugin's version (`${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`) into
+it, and pre-flight stops a screen on an older install. A newer one is used as it is; the row is
+raised only when the project starts relying on something a later release added, so a release
+does not become a change to every project.
 
 A project that has to change a manual keeps its own copy in `{{DOCS_DIR}}` under the same name;
 the skills read a project copy before the plugin's. A project bootstrapped before this change

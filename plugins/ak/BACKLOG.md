@@ -12,6 +12,24 @@ that it should now work.
 
 ## Open
 
+### A100 - every kit release asked each project to raise its `KIT_VERSION`
+
+**Found 2026-10-19, after three releases in one day.** `KIT_VERSION` was described as the
+version a project's screens are planned against, and pre-flight offered to set it to the
+installed version whenever the two differed. The manuals are read from the installed plugin, so
+the row pinned nothing; it only turned each release into a merge request on every project. It
+also stopped nothing: a developer on an older install got a note, not a stop, and ran without
+checks the project already relied on. The project's owner asked for the latest kit always, with
+no hard version.
+
+Changed:
+
+- `KIT_VERSION` is the lowest version a project runs on. Pre-flight goes on with an equal or
+  newer install and does not offer to raise the row. It stops on an older one, with the update
+  command.
+- The coding record names the installed version, so which kit built a screen is still traced.
+- The `PROJECT_CONFIG` template, `DOCS_README` and bootstrap say the same.
+
 ### A99 - a key a stage cannot run without was accepted as `n/a`
 
 **Found 2026-10-19, asking which configuration a screen's modernization reads.** A project was
