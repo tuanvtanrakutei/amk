@@ -145,6 +145,7 @@ The most common defect at G3 UI is a missing empty state on a search screen.
 ## 12. Styling
 
 - Use `{{FE_STYLE_LIB}}` as the project uses it. Do not introduce a second styling mechanism for one screen.
+- Take the look from `{{UI_DESIGN_DOC}}`: its tokens, its colours with a meaning, its table and pagination rules, its legacy-control-to-component map. A colour the legacy screen used to signal a state is reproduced through the token that document names, never as a raw value copied from the wireframe; a colour it does not list is decoration and is not reproduced.
 - Reproduce the legacy layout structure closely enough that an operator recognizes the screen. Visual modernization is allowed; relocating controls is a behavior change.
 - Density matters: legacy data-entry forms pack many fields into one view, and generous modern spacing that forces scrolling makes the screen slower to use.
 
@@ -178,6 +179,8 @@ Concrete patterns live in the project and are declared as `{{FE_PATTERN_DOCS}}` 
 **Division of authority.** On a project-specific detail — a component name, a file location, a props signature — the project pattern document wins. On pipeline behavior and legacy-parity obligations, this document wins. If the two genuinely conflict on the same question, that is a documentation defect: record it in `Known_Issues.md` rather than picking one silently.
 
 If `{{FE_PATTERN_DOCS}}` is `n/a` for a project, this document is the only frontend standard in force, and a reviewer should expect component choices to vary between screens until patterns are written down.
+
+`{{UI_DESIGN_DOC}}` is the third project document: the patterns say how a screen is built, it says what a screen looks like. A conflict between them is a documentation defect, recorded in `Known_Issues.md`.
 
 Authoring `{{FE_PATTERN_DOCS}}` from nothing is harder than editing an existing one.
 `templates/FRONTEND_API_PATTERNS_TEMPLATE.md` and `templates/FRONTEND_UI_PATTERNS_TEMPLATE.md`

@@ -103,6 +103,7 @@ every row it answers, citing the file and line each came from:
 | `FRONTEND_ROOT`, `PACKAGE_MANAGER`, `FE_LINT_CMD`, `FE_UNIT_TEST_CMD`, `FE_E2E_TEST_CMD`, `FE_*_LIB`, `I18N_LIB` | `package.json` scripts and dependencies, the lock file present, `playwright.config.*`, `vite.config.*` |
 | `SOURCE_ENCODING`, `EVIDENCE_*_DIR` | the five-phase workspace's `manifest.yaml` and `input/` folders |
 | Modules table (§3) | the Django apps under `BACKEND_ROOT` |
+| `FE_PATTERN_DOCS`, `UI_DESIGN_DOC` | Pattern and design documents already in the repository (`*PATTERNS*.md`, `UI-DESIGN.md`, `DESIGN.md`). No design document → offer a draft of `UI-DESIGN.md` from `templates/UI_DESIGN_TEMPLATE.md`, filled from the frontend's theme file (its tokens), its component library configuration (`components.json` or equivalent) and the colours `{APP}_ToBe.json` carries from the legacy screens; one accept, and the draft is the project's to edit |
 | `COMPOSE_FILE`, `BACKEND_SERVICE`, `FRONTEND_SERVICE`, `HEALTH_PATH` (§12) | `dev_stack.py plan` (below), and the root `urls.py` for the health path; `LINT_CMD` and `TEST_CMD` are then the backend's own scripts run in `BACKEND_SERVICE` (`docker compose -f <compose> exec -T <service> ./scripts/test.sh`) |
 
 Show the proposal as one table — row, proposed value, source — then, separately, the rows

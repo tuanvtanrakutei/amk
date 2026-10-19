@@ -29,7 +29,8 @@ for you.
    contract from the legacy evidence here; that is Stage 2's job and skipping it is how a
    screen ends up implemented against nobody's agreement.
 2. Its gap matrix must be populated. An empty gap matrix means Stage 2 never closed G2.
-3. Read `PROJECT_CONFIG.md`, then the backend, frontend and conventions rule documents.
+3. Read `PROJECT_CONFIG.md`, then the backend, frontend and conventions rule documents, and for
+   Stage 3b `FE_PATTERN_DOCS` and `UI_DESIGN_DOC`.
 4. Resolve and announce `be_mode` and `fe_mode` before editing anything.
 
 ## Then

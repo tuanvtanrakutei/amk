@@ -89,6 +89,7 @@ One row per Django app that owns screens. The pipeline uses `module` for paralle
 | `FE_E2E_TEST_CMD` | `{{FE_E2E_TEST_CMD}}` | e.g. `npx playwright test` |
 | `I18N_LIB` | `{{I18N_LIB}}` | e.g. `i18next`, or `n/a` if single-language |
 | `FE_PATTERN_DOCS` | `{{FE_PATTERN_DOCS}}` | Project-owned documents holding **concrete** frontend patterns — component choices, hook names, file layout, message-constant organization. `FRONTEND_CODING.md` states principles and defers to these for specifics. Write `n/a` if none exist yet, and expect component choices to vary between screens until they do |
+| `UI_DESIGN_DOC` | `{{UI_DESIGN_DOC}}` | The project's document of what a screen **looks like**: theme tokens, the legacy colours that carry a meaning and their replacement, tables and pagination, the legacy control to component map. Path relative to the repository root, e.g. `UI-DESIGN.md`; start from `templates/UI_DESIGN_TEMPLATE.md`. `plan-screen` and `code-screen` read it; without it every screen chooses its own look |
 | `FE_REFERENCE_SCREEN` | `{{FE_REFERENCE_SCREEN}}` | A screen whose implementation is a good worked example of the project's form or table pattern, for a developer to copy from. `n/a` until one is nominated |
 
 ## 5. Database
