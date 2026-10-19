@@ -12,6 +12,34 @@ that it should now work.
 
 ## Open
 
+### A98 - the To-be wireframe drew a smaller, colourless screen than the one that was built
+
+**Found 2026-10-19, building the first screen of a bootstrapped project from its To-be.** The
+reviewer compared the built main menu with the To-be and asked for four changes, none of which
+the wireframe showed:
+
+- Controls with no colour of their own (the open tab, the file picker, the current page) were
+  white or grey; the project wanted its primary colour on them.
+- The To-be drew 13px text and 30px buttons; the component library's defaults are 14px text and
+  36px controls, so the screen as built looked larger than the one reviewed.
+- The one action that consumes an upload sat on its own full-width row under the picker,
+  instead of beside it.
+- The screen title sat 2px above the content.
+
+The UI design template also misled: "decoration does not [stay]" read as permission to drop a
+menu's action colours, which the operators use to find an action.
+
+Changed:
+
+- `templates/wireframes.html`, To-be view:
+  - 14px text, 36px controls, a 20px title with 24px under it;
+  - one `--tobe-primary` (neutral until a project's UI design names one) on the open tab, the
+    tab strip's rule, the file picker and the current page;
+  - an upload followed by a single action draws that action on the picker's row, sized to its
+    label, with the note below.
+- `UI_DESIGN_TEMPLATE.md`: action colours are a meaning, not decoration; a control with no
+  colour of its own uses the primary; systems of one family keep one root font size.
+
 ### A97 - nothing told a screen what it should look like
 
 **Found 2026-10-19, before the first screen of a bootstrapped project was planned.** Several

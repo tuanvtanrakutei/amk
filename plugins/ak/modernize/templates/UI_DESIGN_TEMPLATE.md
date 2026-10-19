@@ -15,10 +15,14 @@ then the component library's default.
 1. **Familiar first.** Keep a screen's regions, their order, its tabs, its button groups and
    its labels as the legacy runtime view shows them. A layout change names the technical gap it
    fixes.
-2. **Colours that mean something stay; decoration does not.** A colour the legacy screen used
-   to signal a state keeps its meaning (section 3), in an accessible shade.
-3. **One theme.** Do not introduce a second styling mechanism for one screen.
-4. **Keyboard first.** Enter moves to the next field and never submits.
+2. **Colours that mean something stay.** A colour the legacy screen used to signal a state, or
+   to tell one kind of action from another (a menu that captions imports, exports and inquiries
+   in different colours), keeps its meaning (section 3), in an accessible shade. Only a colour
+   that tells the operator nothing is decoration; when unsure, keep it and ask.
+3. **One primary for everything else.** A control with no colour of its own (a default button,
+   the open tab, a file picker, the current page, navigation) uses the primary token.
+4. **One theme.** Do not introduce a second styling mechanism for one screen.
+5. **Keyboard first.** Enter moves to the next field and never submits.
 
 ## 2. Foundations
 
@@ -32,7 +36,9 @@ base colour, icon set>`. Use the tokens, never a raw colour.
 | `<required marker>` | `<value>` | Required field marker |
 | `<table head / selected row / edited row>` | `<value>` | Lists |
 
-Type: `<root font size, body size, font stack>`.
+Type: `<root font size, body size, font stack>`. Systems of one family keep the same root font
+size: every rem-based size, padding and gap scales with it, so one rule in the theme file makes
+every screen of one system smaller or larger than its siblings.
 
 ## 3. Colours with a meaning
 

@@ -145,7 +145,7 @@ The most common defect at G3 UI is a missing empty state on a search screen.
 ## 12. Styling
 
 - Use `{{FE_STYLE_LIB}}` as the project uses it. Do not introduce a second styling mechanism for one screen.
-- Take the look from `{{UI_DESIGN_DOC}}`: its tokens, its colours with a meaning, its table and pagination rules, its legacy-control-to-component map. A colour the legacy screen used to signal a state is reproduced through the token that document names, never as a raw value copied from the wireframe; a colour it does not list is decoration and is not reproduced.
+- Take the look from `{{UI_DESIGN_DOC}}`: its tokens, its colours with a meaning, its table and pagination rules, its legacy-control-to-component map. A colour the legacy screen used to signal a state or to tell kinds of action apart is reproduced through the token that document names, never as a raw value copied from the wireframe. A legacy colour the document does not list is not reproduced; when it could carry such a meaning, raise it for the document instead of dropping it silently. A control with no colour of its own uses the primary token.
 - Reproduce the legacy layout structure closely enough that an operator recognizes the screen. Visual modernization is allowed; relocating controls is a behavior change.
 - Density matters: legacy data-entry forms pack many fields into one view, and generous modern spacing that forces scrolling makes the screen slower to use.
 
