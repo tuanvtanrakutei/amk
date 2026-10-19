@@ -274,3 +274,19 @@ def test_the_checklist_is_quiet_on_a_project_that_meets_it(tmp_path: Path) -> No
                                   str(docs / "Screens_Registry.md"), str(repo))
 
     assert findings.rows == []
+
+
+def test_the_checklist_reports_a_design_document_that_is_not_there(tmp_path: Path) -> None:
+    repo, docs = _checklist_project(tmp_path, "| 1 | `受注照会` | `screen-F001` | `not_started` | `not_started` |")
+    (repo / "backend" / "app" / "master").mkdir()
+    (tmp_path / "workspace" / "input" / "screenshots" / "f.png").write_bytes(b"x")
+    (repo / "PATTERNS.md").write_text("x\n", encoding="utf-8")
+    config = docs / "PROJECT_CONFIG.md"
+    config.write_text(config.read_text(encoding="utf-8")
+                      + "| `FE_PATTERN_DOCS` | `PATTERNS.md` | x |\n| `UI_DESIGN_DOC` | `UI-DESIGN.md` | x |\n",
+                      encoding="utf-8")
+
+    findings = validate_docs.Findings()
+    validate_docs.check_checklist(findings, str(docs), str(config), str(docs / "Screens_Registry.md"), str(repo))
+
+    assert [(r[1], "UI-DESIGN.md" in r[3]) for r in findings.rows] == [("checklist-doc-missing", True)]

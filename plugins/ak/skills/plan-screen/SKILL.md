@@ -43,7 +43,8 @@ resolve from `PROJECT_CONFIG.md`.
 
 - The frontend contract starts from the to-be proposal, not from prose (A92). When the
   investigation's `output/registers/{APP}_ToBe.json` holds the screen, take its pattern,
-  regions, columns and actions as the starting layout, apply the project's design system,
+  regions, columns and actions as the starting layout, apply the project's `UI_DESIGN_DOC` (its tokens,
+  its colours with a meaning, its control-to-component map),
   and copy its mapping into the plan: every legacy control kept, changed or dropped, with the
   reason. A row the proposal marks `needs a decision` is a question for the decider, not a
   choice to make here. Where the plan departs from the proposal, say so and why. Point the

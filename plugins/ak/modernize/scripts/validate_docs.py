@@ -25,7 +25,8 @@ real project, not because it seemed plausible:
                           and a malformed or repeated rule_prefix mints rule ids
                           two screens share or nothing can read back
   missing-folder/readme   a per-screen artifact folder or its README is absent
-  checklist-*             a PROJECT_CONFIG module with no app directory, an evidence
+  checklist-*             a PROJECT_CONFIG module with no app directory, a pattern or
+                          design document that is not there, an evidence
                           directory that is missing or empty, an empty registry: the
                           Validation Checklist items a file read can settle
 
@@ -449,6 +450,15 @@ def check_checklist(f: Findings, docs_dir: str, config_path: str, registry_path:
         elif key != "AK_RUN_DIR" and not any(files for _d, _s, files in os.walk(path)):
             f.add("MEDIUM", "checklist-evidence-missing", where,
                   "%s points at %s, which holds no file" % (key, value))
+
+    for key in ("FE_PATTERN_DOCS", "UI_DESIGN_DOC"):
+        value = config_value(cfg, key)
+        if _not_applicable(value):
+            continue
+        for name in (n.strip().strip("`") for n in value.split(",")):
+            if name and not os.path.isfile(_resolve(name, base)):
+                f.add("MEDIUM", "checklist-doc-missing", where,
+                      "%s names %s, which does not exist; the frontend stages read it" % (key, name))
 
     if os.path.isfile(registry_path):
         text = read(registry_path)

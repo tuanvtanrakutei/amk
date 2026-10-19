@@ -12,6 +12,38 @@ that it should now work.
 
 ## Open
 
+### A97 - nothing told a screen what it should look like
+
+**Found 2026-10-19, before the first screen of a bootstrapped project was planned.** Several
+sources described the frontend, and none of them said what a screen should look like:
+
+- The wireframes said what each screen contains, and the To-be register held the same
+  structure as data.
+- The project's pattern documents said how a screen is built.
+- The theme file and the component library configuration held a design system no document
+  described.
+
+The pipeline said "apply the project's design system" (`plan-screen`), and the To-be proposal
+was "neutral until a project has a design system", but no `PROJECT_CONFIG` row named one. The
+first screen built on that project, its main menu, carried one legacy colour verbatim: an orange
+at about 2:1 contrast on white. It dropped the others.
+
+Changed:
+
+- **`UI_DESIGN_DOC`** in `PROJECT_CONFIG.md` §4. `plan-screen` applies it to the To-be layout and
+  `code-screen` reads it for Stage 3b.
+- `FRONTEND_CODING.md` §12 and §15:
+  - The look comes from that document.
+  - A legacy colour that signals a state is reproduced through the token the document names,
+    never as a raw value.
+  - A colour the document does not list is decoration and is not reproduced.
+- **`templates/UI_DESIGN_TEMPLATE.md`**, with sections for principles, tokens, colours with a
+  meaning, layout, tables and pagination, forms, and the legacy control to component map.
+  Bootstrap Step 2b offers a draft from the theme file, the component library configuration and
+  the colours `{APP}_ToBe.json` carries.
+- `validate-docs` reports a `FE_PATTERN_DOCS` or `UI_DESIGN_DOC` file that is not there
+  (`checklist-doc-missing`).
+
 ### A96 - a project's docs folder held nine kit manuals beside its own files, and a new developer had no way in
 
 **Found 2026-10-15, reviewing the first project bootstrapped by 2.17.0.** The developer asked three
