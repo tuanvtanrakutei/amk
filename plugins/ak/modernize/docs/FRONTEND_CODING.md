@@ -196,7 +196,7 @@ A written pattern document says what to do; a reference screen shows what it loo
 
 Take from it: file layout, where the screen-private hook sits and what it returns, how the form or table is split between container and presentation, how loading, empty and error states are rendered, and how messages are organized. Deviate only where this screen genuinely differs, and say so in `Coding_Records/{screen}.md` — an undocumented deviation reads as an accident to the reviewer.
 
-If `{{FE_REFERENCE_SCREEN}}` is `n/a`, no screen has been reviewed yet. Say so in the coding record; the screen you are building becomes the reference and is worth extra care for that reason.
+If `{{FE_REFERENCE_SCREEN}}` is `n/a`, no screen has been reviewed yet. Say so in the coding record; the screen you are building becomes the reference and is worth extra care for that reason. Stage 5 offers to name it once it approves.
 
 ### 15.2 Use `{{PACKAGE_MANAGER}}`, Not Whichever One Is Installed
 

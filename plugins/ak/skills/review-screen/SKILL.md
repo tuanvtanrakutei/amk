@@ -67,6 +67,11 @@ to believe it has verified work it has only written.
 Report findings ranked most severe first, with the failing scenario for each — concrete inputs
 or state leading to the wrong output. A finding without one is a guess.
 
+When this review approves the frontend and `FE_REFERENCE_SCREEN` in `PROJECT_CONFIG.md` is
+still `n/a`, offer to name this screen there: it is the first reviewed example the next
+screen's Stage 3b can follow. The user accepts or names another; the stage does not write it
+unasked.
+
 End with the next step and offer to run it: on `approved`, Stage 6 (`/ak:modernize-screen
 <screen>` with `accept only`); on a blocker, `/ak:code-screen <screen>`; on a business-rule
 ambiguity, the question for the business owner, which no skill answers.
