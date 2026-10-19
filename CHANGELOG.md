@@ -1,5 +1,43 @@
 # Changelog
 
+## [2.20.0] - 2026-10-19
+
+Pull requests #125, #126 and #127. **What a project must configure is enforced, the To-be draws
+the screen that gets built, and a project follows the latest kit** (A98, A99, A100).
+
+### Added
+
+- **Required configuration rows** (A99). The `PROJECT_CONFIG` template marks the rows a stage
+  cannot run without: `AK_RUN_DIR`, `BACKEND_ROOT`, `API_PREFIX`, `LINT_CMD`, `TEST_CMD`,
+  `FRONTEND_ROOT`, `FE_LINT_CMD`, `FE_E2E_TEST_CMD`. `validate-docs` reports one left `n/a`
+  (`checklist-required-na`, HIGH).
+- Bootstrap sets up an end-to-end runner that is installed with no config (A99):
+  - a minimal config, with one accept;
+  - a profile-gated service on the runner's own image when the frontend image cannot run its
+    browsers;
+  - one run with the no-tests flag.
+
+  A compose `run` uses `--no-deps`, which keeps the development override in place.
+- `review-screen` offers the first approved frontend as `FE_REFERENCE_SCREEN` (A99).
+- The coding record names the installed kit version (A100).
+
+### Changed
+
+- **`KIT_VERSION` is the lowest version a project runs on, not a pin** (A100). Pre-flight goes
+  on with an equal or newer install and no longer offers to raise the row. It stops on an older
+  one, with the update command.
+- **The To-be wireframe** (A98):
+  - draws at a component library's default sizes: 14px text, 36px controls, a 20px title with
+    24px under it;
+  - puts one primary colour on the controls with no colour of their own: the open tab, the file
+    picker, the current page;
+  - draws the single action that consumes an upload on the picker's row.
+- `UI_DESIGN_TEMPLATE.md` and `FRONTEND_CODING.md` (A98):
+  - Colours that tell kinds of action apart carry a meaning; they are not decoration. A legacy
+    colour the design document does not list is raised, not dropped silently.
+  - A control with no colour of its own uses the primary.
+  - Systems of one family keep one root font size.
+
 ## [2.19.0] - 2026-10-19
 
 One pull request (#123). **A project's UI design document is a configuration row the frontend
