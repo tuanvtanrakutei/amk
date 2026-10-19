@@ -290,3 +290,20 @@ def test_the_checklist_reports_a_design_document_that_is_not_there(tmp_path: Pat
     validate_docs.check_checklist(findings, str(docs), str(config), str(docs / "Screens_Registry.md"), str(repo))
 
     assert [(r[1], "UI-DESIGN.md" in r[3]) for r in findings.rows] == [("checklist-doc-missing", True)]
+
+
+def test_the_checklist_reports_a_required_key_left_not_applicable(tmp_path: Path) -> None:
+    repo, docs = _checklist_project(tmp_path, "| 1 | `受注照会` | `screen-F001` | `not_started` | `not_started` |")
+    (repo / "backend" / "app" / "master").mkdir()
+    (tmp_path / "workspace" / "input" / "screenshots" / "f.png").write_bytes(b"x")
+    config = docs / "PROJECT_CONFIG.md"
+    config.write_text(config.read_text(encoding="utf-8")
+                      + "| `FE_E2E_TEST_CMD` | `n/a` | no config yet |\n"
+                      + "| `FE_UNIT_TEST_CMD` | `n/a` | no unit test runner |\n",
+                      encoding="utf-8")
+
+    findings = validate_docs.Findings()
+    validate_docs.check_checklist(findings, str(docs), str(config), str(docs / "Screens_Registry.md"), str(repo))
+
+    assert [(r[0], r[1], r[3].split(" ")[0]) for r in findings.rows] == [
+        ("HIGH", "checklist-required-na", "FE_E2E_TEST_CMD")]

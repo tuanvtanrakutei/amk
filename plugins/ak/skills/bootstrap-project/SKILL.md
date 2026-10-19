@@ -344,8 +344,22 @@ State plainly, in one place:
     create the Django app (`__init__.py`, `apps.py`, an empty `urls.py`, `migrations/__init__.py`),
     add it to `INSTALLED_APPS` and mount it under `API_PREFIX` at its §3 prefix, which is the
     shape every later stage writes into.
-  - Run `LINT_CMD`, `TEST_CMD`, `FE_LINT_CMD` and `FE_E2E_TEST_CMD` once each when filled,
-    in the stack Step 4b brought up. A command that cannot start because its container is
+  - A row the template marks **Required** is never left `n/a` (`checklist-required-na`): a
+    project was bootstrapped with `FE_E2E_TEST_CMD` `n/a` because Playwright was installed with
+    no config, and every screen's Stage 4b would have ended blocked. When the runner is a
+    dependency but its config is missing, offer, with one accept, a minimal config: the test
+    directory, the frontend's URL from the stack (Step 4b), and a JUnit reporter; then fill the
+    command as it runs in the frontend service. A runner that is not installed is the user's
+    decision: name it as the blocker, do not add a dependency. When the frontend image cannot
+    run the runner's browsers (Playwright's do not run on Alpine), propose a compose service on
+    the runner's official image at the installed version, behind a profile, on the stack's
+    network; its command uses `run --rm --no-deps`, because a `run` without it recreates the
+    running services from the named compose file alone and drops the development override
+    Step 4b wrote (the backend lost its local database that way).
+  - Run `LINT_CMD`, `TEST_CMD`, `FE_LINT_CMD` and `FE_E2E_TEST_CMD` once each, in the stack
+    Step 4b brought up. With no test written yet, run the end-to-end command with its runner's
+    no-tests flag (Playwright: `--pass-with-no-tests`); "no tests found" proves the runner and
+    its config load. A command that cannot start because its container is
     down is Step 4b's to fix. Do not install dependencies on the host into a folder a compose
     service mounts: a host `node_modules` in a mounted `frontend/` made the container's
     `pnpm install` fail with `EACCES`, and a host virtual environment is ignored by the

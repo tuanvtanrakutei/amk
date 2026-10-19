@@ -3,6 +3,8 @@
 > **Fill every `{{...}}` before running the pipeline.** This file is the single source of all project-specific values. Generic pipeline documents reference these as placeholders and resolve them by reading this file at pre-flight.
 >
 > If a value genuinely does not apply, write `n/a` and one clause explaining why. Do not delete the row — a missing row and an intentionally-absent value look identical to an agent, and it will stop to ask.
+>
+> A row whose notes start with **Required** does not take `n/a`: a stage cannot run without it, and `validate-docs` reports it (`checklist-required-na`). Set the thing up instead.
 
 Copy this file to your project's documentation root. Keep it under version control.
 
@@ -36,7 +38,7 @@ Copy this file to your project's documentation root. Keep it under version contr
 | `EVIDENCE_OUTPUT_DIR` | `{{EVIDENCE_OUTPUT_DIR}}` | Legacy report output samples (PDF, Excel, text) |
 | `EVIDENCE_INTERVIEW_DIR` | `{{EVIDENCE_INTERVIEW_DIR}}` | Recorded answers from named people, dated - the only class besides a document that can carry a claim about meaning, usage or intent. `n/a` if none have been recorded, which is the honest value on a project that has only exports |
 | `EVIDENCE_DOCUMENT_DIR` | `{{EVIDENCE_DOCUMENT_DIR}}` | Business documents supplied for this application - operation manuals, data dictionaries, screen lists. `n/a` if none |
-| `AK_RUN_DIR` | `{{AK_RUN_DIR}}` | Root of a five-phase analysis run (contains `run-state.json`, or is a workspace with `manifest.yaml` and `output/`, and `Evidence.json` / `TraceabilityMatrix.csv` if the enriched tier was produced), or `n/a` if Stage 0 was manual export per `LEGACY_EVIDENCE.md` §6 |
+| `AK_RUN_DIR` | `{{AK_RUN_DIR}}` | **Required** (Stage 1 is computed from it; with `n/a` pre-flight stops until the extraction has run). Root of a five-phase analysis run (contains `run-state.json`, or is a workspace with `manifest.yaml` and `output/`, and `Evidence.json` / `TraceabilityMatrix.csv` if the enriched tier was produced), or `n/a` if Stage 0 was manual export per `LEGACY_EVIDENCE.md` §6 |
 
 ## 3. Target Backend
 
@@ -44,11 +46,11 @@ Fixed stack: Django + Django REST Framework + PostgreSQL.
 
 | Key | Value | Notes |
 |---|---|---|
-| `BACKEND_ROOT` | `{{BACKEND_ROOT}}` | e.g. `backend/order_receiving` |
-| `API_PREFIX` | `{{API_PREFIX}}` | e.g. `/api/v1/a99/` — every endpoint mounts under this |
+| `BACKEND_ROOT` | `{{BACKEND_ROOT}}` | **Required.** e.g. `backend/order_receiving` |
+| `API_PREFIX` | `{{API_PREFIX}}` | **Required.** e.g. `/api/v1/a99/` — every endpoint mounts under this |
 | `TABLE_MAP_DOC` | `{{TABLE_MAP_DOC}}` | Legacy-to-new table/field mapping document |
-| `LINT_CMD` | `{{LINT_CMD}}` | Exact command, run where the backend runs, e.g. `docker compose -f <compose> exec -T <backend service> ./scripts/lint.sh` (section 12) |
-| `TEST_CMD` | `{{TEST_CMD}}` | Exact command, e.g. `docker compose -f <compose> exec -T <backend service> ./scripts/test.sh <module_path>`. A suite written for the Linux container is run in it: on a Windows host pytest can fail before a test body runs |
+| `LINT_CMD` | `{{LINT_CMD}}` | **Required** (closes Stage 3a). Exact command, run where the backend runs, e.g. `docker compose -f <compose> exec -T <backend service> ./scripts/lint.sh` (section 12) |
+| `TEST_CMD` | `{{TEST_CMD}}` | **Required** (closes Stage 4a). Exact command, e.g. `docker compose -f <compose> exec -T <backend service> ./scripts/test.sh <module_path>`. A suite written for the Linux container is run in it: on a Windows host pytest can fail before a test body runs |
 | `MIGRATIONS_POLICY` | `{{MIGRATIONS_POLICY}}` | `owned` (this project creates migrations) or `external` (models and migrations belong to another module — do not create) |
 
 ### Modules
@@ -74,7 +76,7 @@ One row per Django app that owns screens. The pipeline uses `module` for paralle
 
 | Key | Value | Notes |
 |---|---|---|
-| `FRONTEND_ROOT` | `{{FRONTEND_ROOT}}` | e.g. `frontend/src` |
+| `FRONTEND_ROOT` | `{{FRONTEND_ROOT}}` | **Required.** e.g. `frontend/src` |
 | `FE_ROUTE_BASE` | `{{FE_ROUTE_BASE}}` | e.g. `/a99` |
 | `FE_PAGE_DIR` | `{{FE_PAGE_DIR}}` | Route-level components, e.g. `{{FRONTEND_ROOT}}/pages` |
 | `FE_API_DIR` | `{{FE_API_DIR}}` | Typed API client modules |
@@ -84,13 +86,13 @@ One row per Django app that owns screens. The pipeline uses `module` for paralle
 | `FE_FORM_LIB` | `{{FE_FORM_LIB}}` | e.g. `react-hook-form + Zod` |
 | `FE_STYLE_LIB` | `{{FE_STYLE_LIB}}` | e.g. `Tailwind CSS` |
 | `PACKAGE_MANAGER` | `{{PACKAGE_MANAGER}}` | e.g. `pnpm`, `npm`, `yarn`. `FRONTEND_CODING.md` §15.2 tells the agent to run every frontend command through this one, so a project that leaves it unanswered gets whichever manager the agent happens to reach for — and a second lock file |
-| `FE_LINT_CMD` | `{{FE_LINT_CMD}}` | Run where the frontend runs, e.g. `docker compose -f <compose> exec -T <frontend service> npm run lint` (section 12) |
+| `FE_LINT_CMD` | `{{FE_LINT_CMD}}` | **Required** (closes Stage 3b). Run where the frontend runs, e.g. `docker compose -f <compose> exec -T <frontend service> npm run lint` (section 12) |
 | `FE_UNIT_TEST_CMD` | `{{FE_UNIT_TEST_CMD}}` | e.g. `npm run test`, or `n/a` |
-| `FE_E2E_TEST_CMD` | `{{FE_E2E_TEST_CMD}}` | e.g. `npx playwright test` |
+| `FE_E2E_TEST_CMD` | `{{FE_E2E_TEST_CMD}}` | **Required** (closes Stage 4b). Run where the frontend runs, e.g. `docker compose -f <compose> exec -T <frontend service> pnpm run test:e2e`. With the runner installed but no config, bootstrap offers a minimal one |
 | `I18N_LIB` | `{{I18N_LIB}}` | e.g. `i18next`, or `n/a` if single-language |
 | `FE_PATTERN_DOCS` | `{{FE_PATTERN_DOCS}}` | Project-owned documents holding **concrete** frontend patterns — component choices, hook names, file layout, message-constant organization. `FRONTEND_CODING.md` states principles and defers to these for specifics. Write `n/a` if none exist yet, and expect component choices to vary between screens until they do |
 | `UI_DESIGN_DOC` | `{{UI_DESIGN_DOC}}` | The project's document of what a screen **looks like**: theme tokens, the legacy colours that carry a meaning and their replacement, tables and pagination, the legacy control to component map. Path relative to the repository root, e.g. `UI-DESIGN.md`; start from `templates/UI_DESIGN_TEMPLATE.md`. `plan-screen` and `code-screen` read it; without it every screen chooses its own look |
-| `FE_REFERENCE_SCREEN` | `{{FE_REFERENCE_SCREEN}}` | A screen whose implementation is a good worked example of the project's form or table pattern, for a developer to copy from. `n/a` until one is nominated |
+| `FE_REFERENCE_SCREEN` | `{{FE_REFERENCE_SCREEN}}` | A screen whose implementation is a good worked example of the project's form or table pattern, for a developer to copy from. `n/a` until one is nominated; the first screen Stage 5 approves offers itself |
 
 ## 5. Database
 
