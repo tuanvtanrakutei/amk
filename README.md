@@ -55,8 +55,13 @@ Yellow boxes are the only places a person is asked anything. Everything else is 
 
 | Agent | Run |
 | :--- | :--- |
-| Claude Code | `/plugin marketplace add tuanvtanrakutei/amk` then `/plugin install ak@amk` |
-| Codex CLI | `codex plugin marketplace add tuanvtanrakutei/amk --sparse .agents/plugins --sparse plugins/ak` then `codex plugin add ak@amk` |
+| Claude Code | `/plugin marketplace add tuanvtanrakutei/amk` then `/plugin install ak@access-modernization-kit` |
+| Codex CLI | `codex plugin marketplace add tuanvtanrakutei/amk --sparse .agents/plugins --sparse plugins/ak` then `codex plugin add ak@access-modernization-kit` |
+
+The repository is `tuanvtanrakutei/amk`; the marketplace it publishes is still named
+`access-modernization-kit`, and the name after `@` is the marketplace's. A machine that added the
+marketplace under the repository's former name, `tuanvtanrakutei/access-modernization-kit`, keeps
+updating through GitHub's redirect.
 
 **2. Install the two Python packages** (the plugin install does not do this):
 
