@@ -25,6 +25,9 @@ real project, not because it seemed plausible:
                           and a malformed or repeated rule_prefix mints rule ids
                           two screens share or nothing can read back
   missing-folder/readme   a per-screen artifact folder or its README is absent
+  checklist-required-na   a key a stage's closing gate runs was `n/a`: the e2e command
+                          was left `n/a` on a project that had the runner installed but
+                          no config, so every screen's Stage 4b could only end blocked
   checklist-*             a PROJECT_CONFIG module with no app directory, a pattern or
                           design document that is not there, an evidence
                           directory that is missing or empty, an empty registry: the
@@ -400,6 +403,18 @@ def check_registry(f: Findings, docs_dir: str, registry_path: str) -> None:
 MODULE_TABLE_ROW = re.compile(r"^\|\s*`([A-Za-z_][A-Za-z0-9_]*)`\s*\|", re.M)
 EVIDENCE_KEYS = ("EVIDENCE_CODE_DIR", "EVIDENCE_UI_DIR", "EVIDENCE_OUTPUT_DIR",
                  "EVIDENCE_INTERVIEW_DIR", "EVIDENCE_DOCUMENT_DIR")
+# Keys a stage cannot run without: `n/a` here does not mean "does not apply", it means the
+# stage that reads it ends blocked on every screen. The template marks the same rows.
+REQUIRED_KEYS = {
+    "AK_RUN_DIR": "Stage 1 is computed from the extraction's registers",
+    "BACKEND_ROOT": "Stage 3a writes under it",
+    "API_PREFIX": "every endpoint mounts under it",
+    "LINT_CMD": "it closes Stage 3a",
+    "TEST_CMD": "it closes Stage 4a",
+    "FRONTEND_ROOT": "Stage 3b writes under it",
+    "FE_LINT_CMD": "it closes Stage 3b",
+    "FE_E2E_TEST_CMD": "it closes Stage 4b",
+}
 
 
 def config_value(config_text: str, key: str) -> str:
@@ -428,6 +443,12 @@ def check_checklist(f: Findings, docs_dir: str, config_path: str, registry_path:
     cfg = read(config_path)
     where = rel(config_path, docs_dir)
     base = source_dir or os.path.dirname(os.path.abspath(docs_dir))
+
+    for key, why in REQUIRED_KEYS.items():
+        value = config_value(cfg, key)
+        if value.lower().startswith("n/a"):
+            f.add("HIGH", "checklist-required-na", where,
+                  "%s is `n/a`, but %s; set it up before the first screen" % (key, why))
 
     backend_root = config_value(cfg, "BACKEND_ROOT")
     block = cfg.split("### Modules", 1)[1].split("\n#", 1)[0] if "### Modules" in cfg else ""

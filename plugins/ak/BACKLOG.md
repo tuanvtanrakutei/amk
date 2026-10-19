@@ -12,6 +12,33 @@ that it should now work.
 
 ## Open
 
+### A99 - a key a stage cannot run without was accepted as `n/a`
+
+**Found 2026-10-19, asking which configuration a screen's modernization reads.** A project was
+bootstrapped with `FE_E2E_TEST_CMD` `n/a`: Playwright was a dependency with a script, but there
+was no config, so detection found no command. Nothing objected to it:
+
+- bootstrap ran the four commands only "when filled";
+- `validate-docs` read `n/a` as a deliberate "does not apply";
+- pre-flight stops only on an unfilled `{{...}}`.
+
+The checklist item "`FE_E2E_TEST_CMD` runs" stayed unmet, and every screen's Stage 4b, whose
+closing gate runs that command, could only end blocked. `FE_REFERENCE_SCREEN` was rightly `n/a`,
+but nothing filled it once a screen had been reviewed.
+
+Changed:
+
+- `PROJECT_CONFIG` template: the rows a stage cannot run without are marked **Required**
+  (`AK_RUN_DIR`, `BACKEND_ROOT`, `API_PREFIX`, `LINT_CMD`, `TEST_CMD`, `FRONTEND_ROOT`,
+  `FE_LINT_CMD`, `FE_E2E_TEST_CMD`). `validate-docs` reports one left `n/a`, HIGH
+  (`checklist-required-na`).
+- Bootstrap: a runner that is installed with no config gets a minimal config, with one accept. A
+  frontend image that cannot run the browsers gets a profile-gated service on the runner's own
+  image. The end-to-end command is run once with the no-tests flag. A compose `run` uses
+  `--no-deps`: without it the project's backend was recreated without the development override
+  and lost its local database.
+- `review-screen`: the first approved frontend offers itself as `FE_REFERENCE_SCREEN`.
+
 ### A97 - nothing told a screen what it should look like
 
 **Found 2026-10-19, before the first screen of a bootstrapped project was planned.** Several
