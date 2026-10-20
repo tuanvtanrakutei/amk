@@ -12,6 +12,40 @@ that it should now work.
 
 ## Open
 
+### A101 - the decision tools could not see a workspace's queue, nor say what a decision left out
+
+**Found 2026-10-20, interviewing the project lead through the open questions of the first screen
+to modernize.** Five defects, each met while recording answers:
+
+- `screen_decisions.py` looked for the queue in `AK_RUN_DIR` and one level below. A workspace
+  keeps it in `output/registers/`, so pre-flight step 8 would have failed on the first screen.
+- Pointed at the queue, it reported "0 items" for every screen. Items name tables
+  (`object:<table>`), and the screen's `F-` identifier is titled only in the identifier
+  register. The matrix's `screen` cells read `F-001 <name>` or `F-002, F-003`, which an
+  exact match on the name never equals. A question about a column the screen's import writes
+  reached no screen.
+- `--decide` takes one of four choices and nothing else. `fix` recorded a risk's whole
+  Mitigation, and one Mitigation asked both for a one-transaction import and for every batch's
+  files kept. The decider wanted the first, and decided on the next item to keep no files.
+- `--assume` printed the two edits the phase document needed and made neither. The conformance
+  gate then reported the document until they were made by hand.
+- An evidence item added by hand took an id a phase had already allocated. Every check passed,
+  because all of them read the ids as a set.
+
+Changed:
+
+- `screen_decisions.py` finds the queue in `output/registers/` too. It takes the screen's `F-`
+  from the identifier register and reads the `F-` ids out of a matrix cell. It links an item by
+  its data: a table the screen's own matrix rows name in `data_target`. That link is listed and
+  does not stop pre-flight, like a workflow.
+- `$ak decisions --decide --note ITEM=text` writes the narrowing beside the decision, in the
+  record and in its evidence statement.
+- `--assume` edits the phase documents itself, and names any edit whose place it cannot find.
+- `validate_evidence_citations.py` fails on two items under one id (`DUPLICATE`).
+
+Not changed: there is still no command that adds an observation, or that closes a question by a
+decision rather than an answer. Both were written into the registers by hand.
+
 ### A100 - every kit release asked each project to raise its `KIT_VERSION`
 
 **Found 2026-10-19, after three releases in one day.** `KIT_VERSION` was described as the

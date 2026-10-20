@@ -112,6 +112,34 @@ def assume(entries: list[dict[str, Any]], item_id: str, statement: str, if_wrong
     return Assumption(entry=entry, item=item, warnings=warnings)
 
 
+def apply_to_document(text: str, assumption: Assumption) -> tuple[str, list[str]]:
+    """Make the phase document say what the register now says; return it and what was left undone.
+
+    The two edits `document_edits` describes were printed and left to whoever ran the command,
+    and the conformance gate then reported the document until someone made them by hand.
+    The Questions row's last cell is the Default; the new row goes after the last `AS-` row.
+    An edit whose place cannot be found is returned, not guessed.
+    """
+    entry, item = assumption.entry, assumption.item
+    lines = text.split("\n")
+    left: list[str] = []
+    rows = [n for n, line in enumerate(lines) if line.startswith(f"| {item['id']} |")]
+    if len(rows) == 1 and lines[rows[0]].rstrip().endswith("|"):
+        cells = lines[rows[0]].rstrip().rstrip("|").rsplit("|", 1)
+        if cells[1].strip() in ("", "—", "-"):
+            lines[rows[0]] = f"{cells[0]}| {entry['id']} |"
+        else:
+            left.append(f"the Questions row for {item['id']} already has a Default ({cells[1].strip()})")
+    else:
+        left.append(f"the Questions row for {item['id']} (found {len(rows)})")
+    assumptions = [n for n, line in enumerate(lines) if line.startswith("| AS-")]
+    if assumptions:
+        lines.insert(assumptions[-1] + 1, f"| {entry['id']} | {entry['title']} | {entry[dq.IF_WRONG]} |")
+    else:
+        left.append(f"the Assumptions table, which holds no `AS-` row to add {entry['id']} after")
+    return "\n".join(lines), left
+
+
 def document_edits(assumption: Assumption, documents: list[str]) -> list[str]:
     """What the phase document has to say for the conformance gate to agree with the register."""
     entry, item = assumption.entry, assumption.item

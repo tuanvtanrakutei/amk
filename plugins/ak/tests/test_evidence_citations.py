@@ -177,3 +177,13 @@ def test_cross_phase_citations_are_surfaced(tmp_path: Path) -> None:
 def test_a_document_name_carries_its_phase() -> None:
     assert checker.PHASE_IN_NAME.search("A99_Phase2_ScreenAnalysis_EN.md").group(1) == "2"
     assert checker.PHASE_IN_NAME.search("A99_DataCatalogue.md") is None
+
+
+def test_two_items_under_one_id_fail(tmp_path: Path, capsys) -> None:
+    outputs = write_outputs(
+        tmp_path,
+        [item("A99-P5-SAMPLE-006", 5), item("A99-P5-SAMPLE-006", 5)],
+        "The workbook carries the version (`A99-P5-SAMPLE-006`).",
+    )
+    assert run(outputs) == 1
+    assert "DUPLICATE A99-P5-SAMPLE-006" in capsys.readouterr().out

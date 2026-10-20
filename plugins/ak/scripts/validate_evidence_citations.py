@@ -190,6 +190,14 @@ def main() -> int:
     register = json.loads(read_text(evidence_path) or "{}")
     items = register.get("items") or []
     known = {item["id"] for item in items if isinstance(item, dict) and item.get("id")}
+    # Two items under one id: a citation can no longer say which statement it rests on. An
+    # item appended by hand took an id a later phase had already allocated, and every
+    # check here still passed, because they all read the ids as a set.
+    seen: dict[str, int] = {}
+    for item in items:
+        if isinstance(item, dict) and item.get("id"):
+            seen[item["id"]] = seen.get(item["id"], 0) + 1
+    duplicates = sorted(i for i, n in seen.items() if n > 1)
     phase_of = {
         item["id"]: item.get("phase")
         for item in items
@@ -240,7 +248,8 @@ def main() -> int:
         "cross_phase_citations": {k: sorted(v) for k, v in borrowed.items()},
         "workspace": str(workspace_root),
         "unresolvable_sources": unresolvable,
-        "status": "FAIL" if dangling or unresolvable else "PASS",
+        "duplicate_ids": duplicates,
+        "status": "FAIL" if dangling or unresolvable or duplicates else "PASS",
     }
 
     if args.json:
@@ -272,13 +281,15 @@ def main() -> int:
             print(f"  uncited (not an error): {len(uncited)} item(s) are listed in the "
                   "register and support no statement - "
                   + ", ".join(uncited[:8]) + (", ..." if len(uncited) > 8 else ""))
+        for identifier in duplicates:
+            print(f"  DUPLICATE {identifier}: {seen[identifier]} items carry this id")
         if unresolvable:
             print(f"  {len(unresolvable)} item(s) cite a path that does not exist "
                   f"under {workspace_root}:")
             for identifier, cited in sorted(unresolvable.items())[:6]:
                 print(f"    {identifier} -> {cited}")
 
-    return 1 if dangling or unresolvable else 0
+    return 1 if dangling or unresolvable or duplicates else 0
 
 
 if __name__ == "__main__":

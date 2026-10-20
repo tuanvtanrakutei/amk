@@ -708,3 +708,19 @@ def test_every_phase_template_says_what_a_risk_carries_in_the_register(name: str
     guidance = risks[:risks.index("-->")]
     assert "ID-11" in guidance and "DISPOSITION" in guidance and "`class`" in guidance
     assert "none proposed" in guidance and "depends_on" in guidance
+
+
+def test_a_note_narrows_the_decision_in_the_record_and_its_evidence() -> None:
+    """`fix` took the whole Mitigation; a note says which part the decider did not take."""
+    queue = batch_queue()
+    texts = {"RW-01": {"mitigation": "Restrict the update and keep every copy"}}
+    notes = {"RW-01": "restrict the update; no copies are kept (RW-04 = preserve)"}
+    record = batch.record_markdown("A99", {"RW-01": "fix"}, items(queue), texts, decided_by="Person One",
+                                   decided_on="2026-10-02", answers="RW-01=fix", notes=notes)
+    assert "Decider's note: restrict the update; no copies are kept (RW-04 = preserve)." in record
+    made = batch.evidence_items(
+        "A99", {"RW-01": "fix"}, items(queue), texts, [], decided_by="Person One", decided_on="2026-10-02",
+        created_at="2026-10-02T10:00:00+07:00", phase=4, run_id="r",
+        record_path="input/target-intent/A99_Decisions_2026-10-02.md", record_text=record, notes=notes)
+    assert made[0]["statement"].endswith("Decider's note: restrict the update; no copies are kept (RW-04 = preserve).")
+    assert dq.recorded_disposition(made[0]) == "fix"
