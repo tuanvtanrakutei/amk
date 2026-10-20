@@ -67,8 +67,10 @@ GAP_HEADING = re.compile(r"gap\s+matrix", re.IGNORECASE)
 
 
 def optional(where: Path, pattern: str, what: str) -> Path | None:
-    """The one file matching, looked for beside the queue and one directory down; None when there is none."""
-    found = sorted(where.glob(pattern)) or sorted(where.glob(f"*/{pattern}"))
+    """The one file matching, looked for in `where`, one directory down, then in a workspace's
+    `output/registers/` (the registers) and `output/` (the matrix); None when there is none."""
+    found = (sorted(where.glob(pattern)) or sorted(where.glob(f"*/{pattern}"))
+             or sorted(where.glob(f"output/registers/{pattern}")))
     if len(found) > 1:
         raise sd.Problem(f"{what}: more than one {pattern} under {where}")
     return found[0] if found else None
@@ -111,14 +113,23 @@ def placement_ids(entries: list[dict[str, Any]], screen: str, screen_id: str | N
 
 def scope_of(entries: list[dict[str, Any]], rows: list[dict[str, str]], evidence_ids: set[str] | None,
              screen: str, screen_id: str | None = None) -> dict[str, Any]:
-    mine = [r for r in rows if sd.norm(r.get("screen")) == screen]
+    # A matrix cell names a screen by its name, or by its `F-` identifier with or without the name
+    # (`F-001 <name>`, `F-002, F-003`): every screen of one extraction is written the second way,
+    # and an exact match on the name found no row for any of them.
+    own_ids = {i for i in placement_ids(entries, screen, screen_id) if i.startswith("F-")}
+
+    def screens_of(row: dict[str, str]) -> set[str]:
+        cell = str(row.get("screen") or "")
+        return set(sd.F_ID.findall(cell)) or ({sd.norm(cell)} if sd.norm(cell) else set())
+
+    mine = [r for r in rows if sd.norm(r.get("screen")) == screen or own_ids & screens_of(r)]
     # Which screens cite each evidence item: an item many screens cite (a screenshot set, a shared
     # module, a whole export) links its rules and risks to all of them, and the planner should see that.
     by_evidence: dict[str, set[str]] = {}
     for row in rows:
         for token in cited(row.get("evidence_ids")):
-            by_evidence.setdefault(token, set()).add(sd.norm(row.get("screen")))
-    every = {sd.norm(r.get("screen")) for r in rows if sd.norm(r.get("screen"))}
+            by_evidence.setdefault(token, set()).update(screens_of(row))
+    every = {s for r in rows for s in screens_of(r)}
     threshold = broad_threshold(len(every))
     broad = {token for token, screens in by_evidence.items() if len(screens & every) >= threshold}
     used: set[str] = set()
@@ -158,12 +169,19 @@ def scope_of(entries: list[dict[str, Any]], rows: list[dict[str, str]], evidence
             return ("evidence", narrow) if narrow else None
         return ("cross-cutting", shared)
 
-    rules, risks, cross = [], [], []
+    rules, risks, cross, decided = [], [], [], []
     for e in entries:
         namespace = e.get("namespace")
         if not alive(e) or namespace not in (RULE_NAMESPACE, *RISK_NAMESPACES):
             continue
         if namespace != RULE_NAMESPACE and str(e.get("resolved_by") or "").strip():
+            # A decided risk is what the plan has to implement - `fix` is a requirement, `preserve`
+            # a behaviour to keep - and it vanished from the scope the moment it was decided.
+            found = placed(e)
+            if found is not None and found[0] != "cross-cutting":
+                decided.append({"id": e["id"], "title": e.get("title"), "severity": e.get("severity"),
+                                "through": found[1], "screens": reaches(e), "how": found[0],
+                                "resolved_by": str(e["resolved_by"]).strip()})
             continue
         found = placed(e)
         if found is None:
@@ -180,6 +198,7 @@ def scope_of(entries: list[dict[str, Any]], rows: list[dict[str, str]], evidence
         "evidence_missing": sorted(used - evidence_ids) if evidence_ids is not None else [],
         "evidence_checked": evidence_ids is not None,
         "rules": rules, "rules_in_register": all_rules, "risks": risks, "cross_cutting": cross,
+        "decided_risks": decided,
         "broad_evidence": sorted(broad & used), "broad_threshold": threshold,
         "screens_in_matrix": len(every),
     }
@@ -275,9 +294,15 @@ def build(ak: Path, screen: str, plan: Path | None, screen_id: str | None) -> di
              "settled_by_policy": [], "screen_ids": [], "workflows": [], "open_items_elsewhere": 0,
              "open_items_unattached": 0, "matrix_read": True}
     queue_data = sd.read_queue(queue) if queue is not None else None
-    decisions = sd.build(queue_data, screen, matrix, screen_id) if queue_data is not None else empty
+    decisions = sd.build(queue_data, screen, matrix, screen_id, register) if queue_data is not None else empty
     for risk in scope["risks"] + [c for c in scope["cross_cutting"] if "severity" in c]:
         risk["disposition"] = disposition_of(risk["id"], queue_data)
+    statements = {}
+    if evidence is not None:
+        statements = {str(i.get("id")): str(i.get("statement") or "")
+                      for i in (read_json(evidence).get("items") or []) if isinstance(i, dict)}
+    for risk in scope["decided_risks"]:
+        risk["decision"] = statements.get(risk["resolved_by"]) or f"resolved by {risk['resolved_by']}"
     checked = check_plan(plan, scope, decisions) if plan is not None else None
     return {"screen": screen, "scope": scope, "decisions": decisions, "queue_present": queue is not None,
             "plan": checked, "findings": findings_of(scope, decisions, checked, screen)}
@@ -310,6 +335,11 @@ def render(report: dict[str, Any]) -> str:
     out.append(f"- Open risks in scope: {len(scope['risks'])}")
     for risk in scope["risks"]:
         out.append(f"    {risk['id']} [{risk['severity']}]  {risk['title']}  {placement(risk, scope)} -> {risk['disposition']}")
+    if scope.get("decided_risks"):
+        out.append(f"- Risks decided, which the plan implements: {len(scope['decided_risks'])}")
+        for risk in scope["decided_risks"]:
+            out.append(f"    {risk['id']} [{risk['severity']}]  {risk['title']}  {placement(risk, scope)}"
+                       f" -> {risk['decision']} ({risk['resolved_by']})")
     if scope["cross_cutting"]:
         out.append(f"- Cross-cutting, not placed on this screen: {len(scope['cross_cutting'])}. Linked only through "
                    f"evidence that {scope['broad_threshold']} or more screens cite "

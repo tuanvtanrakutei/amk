@@ -12,6 +12,29 @@ that it should now work.
 
 ## Open
 
+### A102 - Stage 1 found no row for any screen of a workspace, and lost every decided risk
+
+**Found 2026-10-20, running Stage 1 for a project's first screen right after A101.**
+`screen_scope.py` had the defects A101 fixed in `screen_decisions.py`. It looked for the
+registers in `AK_RUN_DIR` and one level below, and missed a workspace's `output/registers/`. It
+also matched the matrix's `screen` cell to the screen's name exactly. The extraction writes that
+cell as `F-001 <name>` or `F-002, F-003`, so G1 reported "no traceability row names" every
+screen. That is a HIGH finding, and it stops Stage 1.
+
+With that fixed, a second gap showed. A risk drops out of the scope as soon as it is decided
+(`resolved_by`). But a decided risk is what the plan has to implement: `fix` is a requirement,
+and `preserve` is a behaviour to keep. The four dispositions just recorded for the screen did
+not appear.
+
+Changed:
+
+- `screen_scope.py` reads `output/registers/` too.
+- It matches a matrix row by the screen's name or by the `F-` ids in its cell, and counts the
+  screens an evidence item reaches by those ids.
+- It passes the register to `screen_decisions.build`.
+- It lists the decided risks placed on the screen, with the decision read from the evidence
+  item that resolved each one.
+
 ### A101 - the decision tools could not see a workspace's queue, nor say what a decision left out
 
 **Found 2026-10-20, interviewing the project lead through the open questions of the first screen
