@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.21.0] - 2026-10-20
+
+One pull request (#129). **Pre-flight sees a workspace's decision queue and links its questions
+to the screen, and a decision can say what it leaves out** (A101).
+
+### Fixed
+
+- `screen_decisions.py` (pre-flight step 8):
+  - finds the queue in a workspace's `output/registers/`;
+  - takes the screen's `F-` identifier from the identifier register and from matrix cells such
+    as `F-001 <name>` or `F-002, F-003`;
+  - links an item through a table the screen's own workflow steps name in `data_target`, as a
+    listed item that does not stop pre-flight.
+
+  Before, pre-flight could not find the queue there, and pointed at it, it listed nothing for any
+  screen.
+- `$ak decisions --assume` edits the phase documents itself (the Questions row's Default and the
+  Assumptions table), and names an edit it cannot place. It used to print the edits only.
+- `validate_evidence_citations.py` fails on two evidence items under one id (`DUPLICATE`).
+
+### Added
+
+- `$ak decisions --decide --note ITEM=text`: what narrows a decision, written beside it in the
+  record and its evidence statement, for example the part of a Mitigation not taken.
+
 ## [2.20.0] - 2026-10-19
 
 Pull requests #125, #126 and #127. **What a project must configure is enforced, the To-be draws
