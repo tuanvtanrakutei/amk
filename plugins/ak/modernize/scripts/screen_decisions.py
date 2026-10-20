@@ -11,13 +11,19 @@ blocks, and what the pipeline proceeds on meanwhile (an assumption, or the risk'
 Mitigation). An item with no default is BLOCKING and stops only what it names; one with
 a default proceeds on it. This script says which of those name this screen.
 
-An item names a screen two ways, and both are exact:
+An item names a screen three ways, and all are exact:
 
   directly        its `blocks` lists the screen's `F-` identifier, or `object:<name>`
                   with the screen's production name. The `F-` is found from the queue
-                  itself: the identifier whose title is the screen's name.
+                  and from the identifier register beside it: the identifier whose title
+                  is the screen's name.
   by a workflow   its `blocks` lists a `WF-` that `TraceabilityMatrix.csv` says passes
-                  through the screen (its `screen` column equals the name).
+                  through the screen: its `screen` cell is the name, or carries the
+                  screen's `F-` identifier (`F-001 受注データ取込画面`, `F-002, F-003`).
+  by its data     its `blocks` lists `object:<table>` and a matrix row of the screen names
+                  that table in its `data_target` cell, one of the `;`-separated entries.
+                  A question about a column the screen's import writes reached no screen
+                  before, so every screen read as having nothing open.
 
 Nothing here guesses that two strings mean the same screen. `LEGACY_EVIDENCE.md` 6.3
 explains why: a script that matches names loosely is an unverifiable guess, and a screen
@@ -29,8 +35,12 @@ until the decider settles what it blocks, and no screen sees it from here.
 
 Exit status: 0 when no BLOCKING item names the screen directly, 1 when one does (pre-flight
 stops, as it does for a blocker row in `Known_Issues.md`), 2 when an input cannot be read.
-A BLOCKING item that reaches the screen only through a workflow is listed and does not stop
-pre-flight: the workflow cannot be finalised, and this screen is one step of it.
+A BLOCKING item that reaches the screen only through a workflow or its data is listed and
+does not stop pre-flight: the workflow cannot be finalised, and this screen is one step of it.
+
+The queue is found in the directory given, one level below it, or in `output/registers/`
+below it: a project's `AK_RUN_DIR` is the run's root or a workspace, and a workspace keeps
+its registers there.
 
 Stdlib only, so it runs in a project that has installed nothing.
 """
@@ -39,6 +49,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
 import unicodedata
 from pathlib import Path
@@ -47,6 +58,8 @@ from typing import Any
 OBJECT_PREFIX = "object:"
 QUEUE_GLOB = "*_DecisionQueue.json"
 MATRIX_GLOB = "*_TraceabilityMatrix.csv"
+REGISTER_GLOB = "*_Identifiers.json"
+F_ID = re.compile(r"\bF-[0-9]+\b")
 
 
 class Problem(Exception):
@@ -61,7 +74,8 @@ def norm(text: Any) -> str:
 def find_one(where: Path, pattern: str, what: str) -> Path:
     if where.is_file():
         return where
-    found = sorted(where.glob(pattern)) or sorted(where.glob(f"*/{pattern}"))
+    found = (sorted(where.glob(pattern)) or sorted(where.glob(f"*/{pattern}"))
+             or sorted(where.glob(f"output/registers/{pattern}")))
     if len(found) != 1:
         raise Problem(f"{what}: expected exactly one {pattern} under {where}, found {len(found)}")
     return found[0]
@@ -77,17 +91,38 @@ def read_queue(path: Path) -> dict[str, Any]:
     return data
 
 
-def workflows_through(matrix: Path | None, screen: str) -> set[str]:
-    """The `WF-` ids whose traceability rows name this screen, by exact name."""
+def matrix_rows(matrix: Path | None, screen: str, ids: set[str]) -> list[dict[str, Any]]:
+    """The traceability rows that name this screen: by exact name, or by its `F-` identifier."""
     if matrix is None:
-        return set()
+        return []
     try:
         with matrix.open(encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.DictReader(handle))
     except OSError as error:
         raise Problem(f"{matrix} cannot be read: {error}") from error
-    return {str(r.get("workflow_id") or "").strip() for r in rows
-            if norm(r.get("screen")) == screen and str(r.get("workflow_id") or "").strip()}
+    return [r for r in rows
+            if norm(r.get("screen")) == screen or ids & set(F_ID.findall(str(r.get("screen") or "")))]
+
+
+def workflows_through(rows: list[dict[str, Any]]) -> set[str]:
+    return {str(r.get("workflow_id") or "").strip() for r in rows if str(r.get("workflow_id") or "").strip()}
+
+
+def data_of(rows: list[dict[str, Any]]) -> set[str]:
+    """The tables the screen's own matrix rows name in `data_target`, one per `;` entry."""
+    return {norm(part) for r in rows for part in str(r.get("data_target") or "").split(";") if norm(part)}
+
+
+def register_ids(register: Path | None, screen: str) -> set[str]:
+    """The `F-` identifiers the identifier register titles with this screen's name."""
+    if register is None:
+        return set()
+    try:
+        data = json.loads(register.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise Problem(f"{register} cannot be read: {error}") from error
+    return {str(e["id"]) for e in data.get("entries") or []
+            if isinstance(e, dict) and str(e.get("id") or "").startswith("F-") and norm(e.get("title")) == screen}
 
 
 def screen_ids(items: list[dict[str, Any]], screen: str) -> set[str]:
@@ -100,9 +135,11 @@ def screen_ids(items: list[dict[str, Any]], screen: str) -> set[str]:
     return found
 
 
-def link(item: dict[str, Any], screen: str, ids: set[str], workflows: set[str]) -> dict[str, Any] | None:
-    """How an item names the screen, or None. Direct beats workflow when both hold."""
+def link(item: dict[str, Any], screen: str, ids: set[str], workflows: set[str],
+         data: set[str] | None = None) -> dict[str, Any] | None:
+    """How an item names the screen, or None. Direct beats workflow, workflow beats data."""
     via_workflow: list[str] = []
+    via_data: list[str] = []
     for ref in item.get("blocks") or []:
         if not isinstance(ref, dict):
             continue
@@ -110,7 +147,11 @@ def link(item: dict[str, Any], screen: str, ids: set[str], workflows: set[str]) 
             return {"how": "directly", "through": ref.get("id") or f"{OBJECT_PREFIX}{ref['object']}"}
         if ref.get("id") in workflows:
             via_workflow.append(str(ref["id"]))
-    return {"how": "by a workflow", "through": ", ".join(via_workflow)} if via_workflow else None
+        elif ref.get("object") is not None and norm(ref["object"]) in (data or set()):
+            via_data.append(f"{OBJECT_PREFIX}{ref['object']}")
+    if via_workflow:
+        return {"how": "by a workflow", "through": ", ".join(via_workflow)}
+    return {"how": "by its data", "through": ", ".join(via_data)} if via_data else None
 
 
 def describe_default(default: Any) -> str:
@@ -122,16 +163,19 @@ def describe_default(default: Any) -> str:
     return f"{text} {default['title']}".strip() if default.get("title") else text
 
 
-def build(queue: dict[str, Any], screen: str, matrix: Path | None, screen_id: str | None = None) -> dict[str, Any]:
+def build(queue: dict[str, Any], screen: str, matrix: Path | None, screen_id: str | None = None,
+          register: Path | None = None) -> dict[str, Any]:
     items = [i for i in queue["items"] if isinstance(i, dict)]
-    ids = screen_ids(items, screen) | ({screen_id} if screen_id else set())
-    workflows = workflows_through(matrix, screen)
+    ids = screen_ids(items, screen) | register_ids(register, screen) | ({screen_id} if screen_id else set())
+    rows = matrix_rows(matrix, screen, ids)
+    workflows = workflows_through(rows)
+    data = data_of(rows)
     listed: list[dict[str, Any]] = []
     elsewhere = unattached = 0
     for item in items:
         if item.get("bucket") == "settled":
             continue
-        found = link(item, screen, ids, workflows)
+        found = link(item, screen, ids, workflows, data)
         if found is None:
             if any(isinstance(r, dict) and (r.get("id") or r.get("object")) for r in item.get("blocks") or []):
                 elsewhere += 1
@@ -147,10 +191,10 @@ def build(queue: dict[str, Any], screen: str, matrix: Path | None, screen_id: st
             "precheck": item.get("precheck") or [],
         })
     settled = [{"id": i["id"], "settled_by": i.get("settled_by"), "disposition": i.get("disposition"),
-                "named": link(i, screen, ids, workflows)["how"]}
-               for i in items if i.get("bucket") == "settled" and link(i, screen, ids, workflows)]
+                "named": link(i, screen, ids, workflows, data)["how"]}
+               for i in items if i.get("bucket") == "settled" and link(i, screen, ids, workflows, data)]
     return {
-        "screen": screen, "screen_ids": sorted(ids), "workflows": sorted(workflows),
+        "screen": screen, "screen_ids": sorted(ids), "workflows": sorted(workflows), "data": sorted(data),
         "blocking_directly": [i for i in listed if i["posture"] == "BLOCKING" and i["named"] == "directly"],
         "blocking_by_workflow": [i for i in listed if i["posture"] == "BLOCKING" and i["named"] != "directly"],
         "proceeding_on_default": [i for i in listed if i["posture"] != "BLOCKING"],
@@ -168,9 +212,11 @@ def render(report: dict[str, Any]) -> str:
         out.append(f"- Screen identifier: {', '.join(report['screen_ids'])}")
     out.append("- Workflows through it: " + (", ".join(report["workflows"]) if report["workflows"] else
                ("none in the traceability matrix" if report["matrix_read"] else "not read (no TraceabilityMatrix.csv given)")))
+    if report.get("data"):
+        out.append("- Data its workflow steps name: " + ", ".join(report["data"]))
     out.append("")
     sections = (("BLOCKING and naming this screen: pre-flight stops", "blocking_directly"),
-                ("BLOCKING through a workflow: listed, pre-flight proceeds", "blocking_by_workflow"),
+                ("BLOCKING through a workflow or its data: listed, pre-flight proceeds", "blocking_by_workflow"),
                 ("Proceeding on a default", "proceeding_on_default"))
     for heading, key in sections:
         rows = report[key]
@@ -222,7 +268,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             beside = sorted(queue_path.parent.glob(MATRIX_GLOB)) or sorted(queue_path.parent.parent.glob(MATRIX_GLOB))
             matrix = beside[0] if len(beside) == 1 else None
-        report = build(queue, norm(args.screen), matrix, args.screen_id)
+        registers = sorted(queue_path.parent.glob(REGISTER_GLOB))
+        report = build(queue, norm(args.screen), matrix, args.screen_id,
+                       registers[0] if len(registers) == 1 else None)
     except Problem as problem:
         print(f"error: {problem}", file=sys.stderr)
         return 2

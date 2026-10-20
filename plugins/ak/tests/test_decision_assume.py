@@ -162,7 +162,8 @@ def test_the_command_writes_the_register_with_a_backup_and_names_the_edits(
     run(monkeypatch, root, *ASSUME)
     out = capsys.readouterr().out
     assert "assumed: AS-08 for Q5" in out
-    assert "A99_Phase1_Data_EN.md: the Questions row for Q5" in out
+    # The fixture document has neither table, so both edits are named as left to do.
+    assert "A99_Phase1_Data_EN.md; by hand: the Questions row for Q5 (found 0)" in out
     written = {e["id"]: e for e in json.loads(
         (root / "output" / "A99_Identifiers.json").read_text(encoding="utf-8"))["entries"]}
     assert written["Q5"]["needs"]["default"] == "AS-08"
@@ -190,3 +191,41 @@ def test_assume_without_its_three_parts_is_a_usage_error(tmp_path: Path, monkeyp
     root = workspace(tmp_path)
     with pytest.raises(SystemExit):
         run(monkeypatch, root, "--assume", "Q5", "--that", THAT)
+
+
+PHASE_ONE = """# A99 - Phase 1
+
+### Assumptions
+
+| ID | Assumption | If wrong |
+|---|---|---|
+| AS-07 | Earlier | WF-001 changes |
+
+### Questions
+
+| ID | Question | Blocks | Party | Default |
+|---|---|---|---|---|
+| Q5 | What is imported? | F-001 | Operations | — |
+| Q6 | What else? | — | Operations | AS-07 |
+"""
+
+
+def test_the_command_makes_the_document_agree_with_the_register(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    root = workspace(tmp_path)
+    document = root / "output" / "A99_Phase1_Data_EN.md"
+    document.write_text(PHASE_ONE, encoding="utf-8", newline="\n")
+    run(monkeypatch, root, *ASSUME)
+    assert "by hand" not in capsys.readouterr().out
+    lines = document.read_text(encoding="utf-8").split("\n")
+    assert "| Q5 | What is imported? | F-001 | Operations | AS-08 |" in lines
+    assert lines[lines.index("| AS-07 | Earlier | WF-001 changes |") + 1] == f"| AS-08 | {THAT} | {IF_WRONG} |"
+    assert "| Q6 | What else? | — | Operations | AS-07 |" in lines
+
+
+def test_a_dry_run_leaves_the_document_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = workspace(tmp_path)
+    document = root / "output" / "A99_Phase1_Data_EN.md"
+    document.write_text(PHASE_ONE, encoding="utf-8", newline="\n")
+    run(monkeypatch, root, *ASSUME, "--dry-run")
+    assert document.read_text(encoding="utf-8") == PHASE_ONE

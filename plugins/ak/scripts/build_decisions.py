@@ -67,6 +67,17 @@ import workspace as workspace_contract  # noqa: E402
 Problem = dr.RegisterProblem
 
 
+def parse_notes(specs: list[str]) -> dict[str, str]:
+    """`ITEM=text`: what narrows a decision's commitment, written beside it in the record."""
+    notes: dict[str, str] = {}
+    for spec in specs:
+        item, separator, text = spec.partition("=")
+        if not separator or not item.strip() or not text.strip():
+            raise Problem(f"--note wants ITEM=text, for example RA-04='one transaction, no files kept'; got {spec!r}")
+        notes[item.strip()] = text.strip()
+    return notes
+
+
 def parse_links(specs: list[str]) -> dict[str, list[int]]:
     links: dict[str, list[int]] = {}
     for spec in specs:
@@ -165,13 +176,17 @@ def decide(space: workspace_contract.Workspace, output: Path, register_file: Pat
     if not decisions:
         print("nothing decided")
         return False
+    notes = parse_notes(args.note or [])
+    stray = sorted(set(notes) - set(decisions))
+    if stray:
+        raise Problem(f"nothing recorded: --note names {', '.join(stray)}, which these answers do not decide")
 
     items = {i["id"]: i for i in queue["items"]}
     target = space.input_dir("target-intent")
     taken = {p.name for p in target.glob("*")} if target.is_dir() else set()
     record_path = target / batch.record_name(app, decided_on, taken)
     record_text = batch.record_markdown(app, decisions, items, texts, decided_by=decided_by,
-                                        decided_on=decided_on, answers=answers)
+                                        decided_on=decided_on, answers=answers, notes=notes)
     phases = dr.phase_documents(output)
     made = batch.evidence_items(
         app, decisions, items, texts, existing, decided_by=decided_by, decided_on=decided_on,
@@ -180,7 +195,7 @@ def decide(space: workspace_contract.Workspace, output: Path, register_file: Pat
         # is P4 because Phase 4 recorded it. The phase in an id says when, not what about.
         phase=max(phases) if phases else 1,
         run_id=str((existing[-1] if existing else {}).get("run_id") or "decisions"),
-        record_path=record_path.relative_to(space.root).as_posix(), record_text=record_text)
+        record_path=record_path.relative_to(space.root).as_posix(), record_text=record_text, notes=notes)
     problems = _schema_problems(made)
     if problems:
         raise Problem("nothing recorded: the evidence items would not validate: "
@@ -220,13 +235,24 @@ def assume(space: workspace_contract.Workspace, output: Path, register_file: Pat
         print(f"  WARNING {warning}")
     phase = made.item.get("phase")
     documents = sorted(p.name for p in output.glob(f"*_Phase{phase}_*.md")) if phase else []
-    for line in da_assume.document_edits(made, documents):
-        print(f"  edit: {line}")
     if args.dry_run:
-        print("dry run: the register is not written")
+        for line in da_assume.document_edits(made, documents):
+            print(f"  would edit: {line}")
+        print("dry run: the register and the documents are not written")
         return
     backup = dr.write_register(space, register_file, register)
     print(f"wrote {register_file}; the previous file is {backup}")
+    # The English document is the one the conformance gate reads; a translation is edited
+    # where its tables have the same shape, and named when they do not.
+    for name in documents:
+        path = output / name
+        text, left = da_assume.apply_to_document(path.read_text(encoding="utf-8"), made)
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        print(f"edited {path}" + ("" if not left else "; by hand: " + "; ".join(left)))
+    if not documents:
+        for line in da_assume.document_edits(made, documents):
+            print(f"  edit by hand: {line}")
 
 
 def main() -> int:
@@ -245,6 +271,9 @@ def main() -> int:
     parser.add_argument("--on", help="With --decide: the date decided, YYYY-MM-DD. Default today.")
     parser.add_argument("--answers", help="With --decide: the answers, instead of reading them "
                                           "from the terminal (`ok 3=preserve`).")
+    parser.add_argument("--note", action="append", default=[], metavar="ITEM=TEXT",
+                        help="With --decide: what narrows the decision on ITEM, written beside it "
+                             "in the record and its evidence, e.g. the part of a Mitigation not taken.")
     parser.add_argument("--place", action="append", default=[], metavar="ID=F-nnn[,F-nnn]",
                         help="Place a business rule or a risk on the screens it belongs to, so the "
                              "modernize scope stops linking it by evidence; `ID=` removes it. Needs --by.")

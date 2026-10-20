@@ -248,3 +248,47 @@ def test_the_script_writes_nothing(tmp_path: Path) -> None:
     before = {p.name: p.read_bytes() for p in out.iterdir()}
     run("--queue", out, "--screen", SCREEN)
     assert {p.name: p.read_bytes() for p in out.iterdir()} == before
+
+
+# --- a workspace's layout and its matrix (A101) -----------------------------------------
+
+def _workspace(tmp_path: Path, data: dict, matrix_rows: list[dict], register: list[dict] | None = None) -> Path:
+    registers = tmp_path / "output" / "registers"
+    registers.mkdir(parents=True)
+    (registers / "A99_DecisionQueue.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    if register is not None:
+        (registers / "A99_Identifiers.json").write_text(
+            json.dumps({"entries": register}, ensure_ascii=False), encoding="utf-8")
+    with (tmp_path / "output" / "A99_TraceabilityMatrix.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["run_id", "workflow_id", "screen", "data_target"])
+        writer.writeheader()
+        writer.writerows(matrix_rows)
+    return tmp_path
+
+
+def test_a_workspace_keeps_its_queue_in_output_registers(tmp_path: Path) -> None:
+    root = _workspace(tmp_path, queue(item("Q5", [F_SCREEN])), [])
+    code, data = report(root)
+    assert code == 1 and [i["id"] for i in data["blocking_directly"]] == ["Q5"]
+
+
+def test_the_register_names_the_screens_identifier_and_the_matrix_cell_carries_it(tmp_path: Path) -> None:
+    rows = [{"run_id": "r", "workflow_id": "WF-001", "screen": f"F-002 {SCREEN}", "data_target": "x"},
+            {"run_id": "r", "workflow_id": "WF-003", "screen": "F-002, F-006", "data_target": "y"},
+            {"run_id": "r", "workflow_id": "WF-004", "screen": "F-0020", "data_target": "z"}]
+    root = _workspace(tmp_path, queue(item("UK-W04", [block("WF-003", "list")])), rows,
+                      [{"id": "F-002", "title": SCREEN}, {"id": "F-006", "title": OTHER}])
+    _, data = report(root)
+    assert data["screen_ids"] == ["F-002"]
+    assert data["workflows"] == ["WF-001", "WF-003"]
+    assert [i["id"] for i in data["blocking_by_workflow"]] == ["UK-W04"]
+
+
+def test_a_table_the_screens_workflow_writes_names_it_by_its_data_and_does_not_stop(tmp_path: Path) -> None:
+    rows = [{"run_id": "r", "workflow_id": "WF-001", "screen": SCREEN, "data_target": "受注データ; 管理マスタ"}]
+    root = _workspace(tmp_path, queue(item("Q7", [block(obj="受注データ")]),
+                                      item("Q8", [block(obj="受注データ明細")])), rows)
+    code, data = report(root)
+    assert code == 0
+    assert [(i["id"], i["named"]) for i in data["blocking_by_workflow"]] == [("Q7", "by its data")]
+    assert data["data"] == ["受注データ", "管理マスタ"]

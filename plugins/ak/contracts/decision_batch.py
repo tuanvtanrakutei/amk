@@ -39,13 +39,19 @@ MEANING = {
 }
 
 
-def meaning_of(choice: str, mitigation: str) -> str:
-    """What a choice commits the replacement to, in a sentence that ends once."""
+def meaning_of(choice: str, mitigation: str, note: str = "") -> str:
+    """What a choice commits the replacement to, in a sentence that ends once.
+
+    A note narrows it. `fix` takes the whole Mitigation, and one Mitigation asked for an
+    import in one transaction and for every batch's files kept; the decider wanted the first
+    and had just decided, on the next item, to keep no files. With no way to say so, the
+    record committed the replacement to both."""
     if choice == "fix" and mitigation:
         text = f"Do what its Mitigation says: {mitigation}"
     else:
         text = MEANING[choice]
-    return text.rstrip(" .") + "."
+    text = text.rstrip(" .") + "."
+    return f"{text} Decider's note: {note.strip().rstrip('.')}." if note.strip() else text
 
 
 EVIDENCE_TOKEN = "TARGET"
@@ -162,12 +168,13 @@ def record_name(app: str, decided_on: str, taken: set[str]) -> str:
 
 def record_markdown(app: str, decisions: dict[str, str], items: dict[str, dict[str, Any]],
                     texts: dict[str, dict[str, str]], *, decided_by: str, decided_on: str,
-                    answers: str) -> str:
+                    answers: str, notes: dict[str, str] | None = None) -> str:
     """The TARGET_INTENT record: who decided, when, from what, and each decision."""
     rows = []
     for item_id, choice in decisions.items():
         item = items[item_id]
-        meaning = meaning_of(choice, da.clean_mitigation((texts.get(item_id) or {}).get("mitigation") or ""))
+        meaning = meaning_of(choice, da.clean_mitigation((texts.get(item_id) or {}).get("mitigation") or ""),
+                             (notes or {}).get(item_id, ""))
         rows.append(f"| {item_id} | {da._cell(item['title'])} | {choice} | {da._cell(meaning)} |")
     return "\n".join([
         f"# {app} — dispositions decided",
@@ -202,14 +209,16 @@ def next_serial(evidence_items: list[dict[str, Any]], app: str, token: str = EVI
 def evidence_items(app: str, decisions: dict[str, str], items: dict[str, dict[str, Any]],
                    texts: dict[str, dict[str, str]], existing: list[dict[str, Any]], *,
                    decided_by: str, decided_on: str, created_at: str, phase: int, run_id: str,
-                   record_path: str, record_text: str) -> list[dict[str, Any]]:
+                   record_path: str, record_text: str,
+                   notes: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """One TARGET_INTENT item per decision, each citing its row of the record."""
     digest = hashlib.sha256(record_text.encode("utf-8")).hexdigest()
     serial = next_serial(existing, app)
     made: list[dict[str, Any]] = []
     for offset, (item_id, choice) in enumerate(decisions.items()):
         item = items[item_id]
-        meaning = meaning_of(choice, da.clean_mitigation((texts.get(item_id) or {}).get("mitigation") or ""))
+        meaning = meaning_of(choice, da.clean_mitigation((texts.get(item_id) or {}).get("mitigation") or ""),
+                             (notes or {}).get(item_id, ""))
         made.append({
             "agent_id": None, "agent_runtime": None, "app_id": app,
             "attribution": {"person": decided_by, "recorded_on": decided_on,
