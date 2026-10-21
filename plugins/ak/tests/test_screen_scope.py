@@ -371,3 +371,33 @@ def test_the_broad_threshold_is_half_the_screens_and_never_below_three() -> None
     import screen_scope
 
     assert [screen_scope.broad_threshold(n) for n in (1, 2, 4, 6, 7, 13)] == [3, 3, 3, 3, 4, 7]
+
+
+# --- a workspace's layout, its matrix cells, and what was decided (A102) ------------------------
+
+def test_a_workspace_is_read_from_output_registers_and_its_cells_name_the_screen_by_f_id(tmp_path: Path) -> None:
+    registers = tmp_path / "output" / "registers"
+    registers.mkdir(parents=True)
+    register = REGISTER + [entry("F-002", "F-", [], title=SCREEN), entry("F-006", "F-", [], title=OTHER)]
+    (registers / "A99_Identifiers.json").write_text(json.dumps({"app_id": "A99", "entries": register}), encoding="utf-8")
+    (registers / "A99_Evidence.json").write_text(json.dumps(EVIDENCE), encoding="utf-8")
+    rows = [{**MATRIX[0], "screen": f"F-002 {SCREEN}"}, {**MATRIX[1], "screen": "F-002, F-006"}, MATRIX[2]]
+    with (tmp_path / "output" / "A99_TraceabilityMatrix.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["workflow_id", "step", "screen", "evidence_ids"])
+        writer.writeheader()
+        writer.writerows(rows)
+    code, data = report(tmp_path)
+    assert code == 0, data
+    assert data["scope"]["rows"] == 2
+    assert {r["id"] for r in data["scope"]["rules"]} == {"BR-ORD-01", "BR-ORD-02"}
+
+
+def test_a_decided_risk_stays_in_scope_with_its_decision(tmp_path: Path) -> None:
+    evidence = {"app_id": "A99", "items": EVIDENCE["items"][:1] + [
+        {"id": "A99-P3-CODE-002", "statement": "Disposition of RA-10: fix. Do what its Mitigation says."},
+        EVIDENCE["items"][2]]}
+    _, data = report(workspace(tmp_path, evidence=evidence))
+    decided = {r["id"]: r for r in data["scope"]["decided_risks"]}
+    assert decided["RA-10"]["decision"] == "Disposition of RA-10: fix. Do what its Mitigation says."
+    assert "RA-10" not in {r["id"] for r in data["scope"]["risks"]}
+    assert "Risks decided, which the plan implements: 1" in run("--ak", tmp_path / "output", "--screen", SCREEN).stdout
