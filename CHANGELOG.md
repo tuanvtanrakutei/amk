@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.21.1] - 2026-10-21
+
+One pull request (#131). **Stage 1 finds a workspace's screens, and keeps the risks already
+decided** (A102).
+
+### Fixed
+
+- `screen_scope.py`:
+  - reads the registers from a workspace's `output/registers/`;
+  - matches a matrix row by the screen's name or by the `F-` identifiers in its cell
+    (`F-001 <name>`, `F-002, F-003`). Before, G1 reported every such screen as having no
+    traceability row, a HIGH finding that stops Stage 1;
+  - lists the decided risks placed on the screen, each with the decision read from the evidence
+    item that resolved it. Before, a risk dropped out of the scope once it was decided.
+
 ## [2.21.0] - 2026-10-20
 
 One pull request (#129). **Pre-flight sees a workspace's decision queue and links its questions
