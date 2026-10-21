@@ -12,6 +12,29 @@ that it should now work.
 
 ## Open
 
+### A103 - the docs validator checked registry statuses against a vocabulary nothing documents
+
+**Found 2026-10-21, running `validate-docs` on a project whose registry had a screen at
+`partial`.** `validate_docs.py` reported `registry-status-unknown` for a status the registry
+template defines and the coding stage's end gate sets. The checker's set was `not_started`,
+`in_progress`, `implemented`, `verified`, `deferred`. The template's Status Vocabulary is
+`not_started`, `implemented`, `verified`, `partial`, `blocked`. `in_progress` and `deferred`
+are Known_Issues statuses; no template, workflow, skill or script sets them on a registry row.
+So a legitimate `partial` or `blocked` row was a MEDIUM finding, and a row carrying an issue
+status was passed.
+
+The defect class is a checker holding its own copy of a vocabulary that a template documents.
+The copy drifts and nothing notices, because the tests only used `verified`.
+
+Changed:
+
+- `REGISTRY_STATUSES` is the template's five values.
+- A test passes every documented status and still reports an undocumented one.
+
+Not yet done: the checker does not read the vocabulary from the template, so the two can drift
+again. A test that parses the template's Status Vocabulary table and compares it to the set
+would close that.
+
 ### A102 - Stage 1 found no row for any screen of a workspace, and lost every decided risk
 
 **Found 2026-10-20, running Stage 1 for a project's first screen right after A101.**

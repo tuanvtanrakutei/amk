@@ -196,6 +196,17 @@ def test_two_screens_may_not_declare_the_same_rule_prefix(tmp_path: Path) -> Non
     assert rows == [("HIGH", "registry-rule-prefix-duplicate")]
 
 
+def test_every_documented_registry_status_passes_and_an_undocumented_one_does_not(tmp_path: Path) -> None:
+    rows = _registry(
+        tmp_path,
+        "| Order entry | order-entry | partial | blocked | ORD |",
+        "| Order list | order-list | not_started | implemented | OLS |",
+        "| Stock | stock | verified | `partial` | STK |",
+        "| Location | location | in_progress | deferred | LOC |",
+    )
+    assert rows == [("MEDIUM", "registry-status-unknown")] * 2
+
+
 def test_an_empty_rule_prefix_or_no_column_is_not_a_finding(tmp_path: Path) -> None:
     assert _registry(
         tmp_path,
