@@ -794,6 +794,10 @@
       box.appendChild(el("p", {}, "Out of scope by a recorded decision: not rebuilt."));
       return box;
     }
+    if (p.pattern === "deferred") {
+      box.appendChild(el("p", {}, "Deferred by a recorded decision: not in this replacement; it may come back later."));
+      return box;
+    }
     var row0 = rowsOf(s).rows[0];
     var regions = p.regions || [];
     var joined = -1;

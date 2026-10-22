@@ -89,10 +89,10 @@ def main() -> int:
     intent_dir = space.input_dir("target-intent")
     records = [dr.read_text(p) for p in sorted(intent_dir.glob("*.md"))
                if p.name.lower() != "readme.md"] if intent_dir.is_dir() else []
-    excluded = to_be.out_of_scope_objects(records)
+    dispositions = to_be.scope_dispositions(records)
     ids = {s["name"]: s["id"] for s in screens if s["id"]}
     for s in screens:
-        s["to_be"] = to_be.propose(s, texts.get(s["name"], ""), ids, excluded)
+        s["to_be"] = to_be.propose(s, texts.get(s["name"], ""), ids, dispositions=dispositions)
 
     drawn = sum(len(s["controls"]) for s in screens)
     hidden = sum(s["hidden"] for s in screens)
@@ -124,8 +124,9 @@ def main() -> int:
             {"app_id": app_id, "generated_by": "ak wireframes", "status": "proposal" if "ToBe" in name else "legacy as-is",
              "screens": payload}, ensure_ascii=False, indent=2) + "\n")
     print(f"wrote {registers / (app_id + '_ScreenModel.json')} and {app_id}_ToBe.json "
-          f"({sum(1 for p in proposals if p['pattern'] != 'out of scope')} screens proposed, "
-          f"{sum(1 for p in proposals if p['pattern'] == 'out of scope')} out of scope)")
+          f"({sum(1 for p in proposals if p['pattern'] not in ('out of scope', 'deferred'))} screens proposed, "
+          f"{sum(1 for p in proposals if p['pattern'] == 'out of scope')} out of scope, "
+          f"{sum(1 for p in proposals if p['pattern'] == 'deferred')} deferred)")
     same = path.is_file() and dr.read_text(path) == text
     if not same:
         dr.atomic_write(path, text)

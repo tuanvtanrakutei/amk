@@ -80,6 +80,18 @@ def test_a_workspace_sorts_its_objects_into_active_future_and_excluded(tmp_path,
     assert found["entry_points"] == ["Menu"]
 
 
+def test_a_deferred_screen_goes_to_future_scope_with_its_reason(tmp_path, conforming):
+    ws = make_workspace(tmp_path)
+    (ws / "input" / "target-intent" / "later.md").write_text(
+        "| Object | Kind | In the replacement |\n|---|---|---|\n| Stores (F-006) | form | deferred (future scope) |\n",
+        encoding="utf-8")
+    found = workspace_inventory.inventory(str(ws))
+
+    assert [r["object"] for r in found["active"]] == ["Menu", "Orders"]
+    stores = next(r for r in found["future"] if r["object"] == "Stores")
+    assert stores["reason"] == "deferred by a recorded decision"
+
+
 def test_a_workspace_whose_phase2_does_not_conform_is_not_seeded(tmp_path, monkeypatch):
     ws = make_workspace(tmp_path)
     monkeypatch.setattr(workspace_inventory, "conformance_gate", lambda root, doc: ("FAILS", "diagram_present"))
