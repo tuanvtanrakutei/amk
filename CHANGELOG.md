@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.21.2] - 2026-10-22
+
+Two pull requests (#133, #134). **`validate-docs` accepts every documented registry status, and
+the term dictionary covers common business words** (A103, A104).
+
+### Fixed
+
+- `validate_docs.py` checks registry statuses against the template's five values (`not_started`,
+  `implemented`, `verified`, `partial`, `blocked`). Before, a `partial` or `blocked` row was a
+  MEDIUM `registry-status-unknown` finding, and the Known_Issues statuses `in_progress` and
+  `deferred` were accepted on a registry row (A103).
+- `ja-en-terms.yaml` gains common business, goods-family, screen, query and control words
+  (`納品`, `納期`, `希望`, `予定`, `種別`, `管理`, `用紙`, `サイズ`, `レポート`, `最小`, `照会`,
+  `一覧`, `保守`, `抽出` and others). Before, catalogue names built from them came out
+  `_partial_`, and some were wrong rather than unfinished: `納品希望日` became `goods_date` (A104).
+- A term whose edge is a Latin letter or digit matches only a whole Latin word at that edge.
+  Before, `PaperSize` rendered as `p` through the term `Ｐ` (A104).
+
 ## [2.21.1] - 2026-10-21
 
 One pull request (#131). **Stage 1 finds a workspace's screens, and keeps the risks already
