@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.22.2] - 2026-10-22
+
+One pull request (#141). **The screen catalogue keeps a report's own id, counts every event
+handler, and its register and key texts say what they mean** (A109).
+
+### Fixed
+
+- A report that shares a form's name kept the form's `F-` id, and its controls replaced the
+  form's. Ids and controls are now keyed by kind and name.
+- An event procedure on a control with a non-ASCII name was not counted, so a form whose only
+  handler was such a button showed 0 event procedures.
+- The screen catalogue's Q&A line printed a question's ID as if it were a count; it now says
+  how many questions there are and which are not yet answered.
+- The data catalogue asked for a key on the referencing side of a join; the referencing side
+  is now recognised and only the referenced side is flagged.
+
 ## [2.22.1] - 2026-10-22
 
 One pull request (#139). **The catalogues print the names accepted for screens, queries and
