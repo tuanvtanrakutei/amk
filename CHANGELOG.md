@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.22.0] - 2026-10-22
+
+Two pull requests (#136, #137). **The catalogues count writers, joins and references
+correctly, and the to-be screens follow deferred screens and read-only fields** (A105, A106).
+
+### Added
+
+- `to_be.scope_dispositions` reads a target-intent decision table cell that starts with
+  `out of scope`, `deferred` / `future scope` or `read-only`, for a screen or one
+  `<screen>.<control>` (A106).
+- The to-be (`$ak wireframes`):
+  - proposes a deferred screen as `deferred`, with no regions;
+  - shows a field recorded `read-only` without editing it;
+  - drops a control recorded out of scope or deferred.
+- The registry seeder puts a deferred object in Future Scope (A106).
+
+### Fixed
+
+- A cell reading `out of scope; …` is out of scope. Before, only a cell equal to `out of scope`
+  counted (A106).
+- A button that does more than open a screen that is not built keeps its work, and its mapping
+  says it no longer opens that screen. Before, the whole button was dropped (A106).
+- The catalogues (A105):
+  - count a `SELECT … INTO` query as a write to its target table;
+  - attribute a DAO/ADO recordset `.AddNew` / `.Edit` / `.Delete` to the procedure that does it;
+  - read `ON a.x = b.x AND a.y = b.y` as one composite join;
+  - count a reference only for a whole object name, outside VBA comment lines.
+
 ## [2.21.2] - 2026-10-22
 
 Two pull requests (#133, #134). **`validate-docs` accepts every documented registry status, and
