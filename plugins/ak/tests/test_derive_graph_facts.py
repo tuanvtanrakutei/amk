@@ -195,3 +195,40 @@ def test_a_form_named_like_a_table_is_referenced_only_where_it_is_opened(tmp_pat
              for e in derived["edges"]]
     to_form = [e for e in edges if e[1] == ("form", "受注データ")]
     assert to_form == [("メインメニュー", ("form", "受注データ"), "line 5")]
+
+
+# --- A105: a reference is a whole name on a line that runs ------------------
+
+
+def test_a_name_inside_a_longer_name_is_not_found() -> None:
+    names = sorted({"Q受注", "Q受注明細", "受注 明細", "受注"}, key=len, reverse=True)
+    assert deriver.names_in_line('DoCmd.OpenQuery "Q受注明細"', names) == {"Q受注明細"}
+    assert deriver.names_in_line('DoCmd.OpenQuery "Q受注"', names) == {"Q受注"}
+    assert deriver.names_in_line("SELECT * FROM [受注 明細];", names) == {"受注 明細"}
+    assert deriver.names_in_line("x = Q受注_old", names) == set()
+    assert deriver.names_in_line("FROM 受注.伝票, Q受注明細", names) == {"受注", "Q受注明細"}
+
+
+def test_a_comment_line_is_a_comment() -> None:
+    assert deriver.is_vba_comment("    ' DoCmd.OpenQuery \"Q受注\"")
+    assert deriver.is_vba_comment("Rem Q受注 is obsolete")
+    assert not deriver.is_vba_comment("    Remove = 1")
+    assert not deriver.is_vba_comment('    x = "a\'b"')
+
+
+def test_references_skip_comments_and_longer_names(tmp_path: Path) -> None:
+    """Counting `受注` wherever `受注データ` was named, or on a comment, is a false reference."""
+    menu = ('Private Sub cmd_Click()\n'
+            '    CurrentDb.Execute "delete * from 受注データ"\n'
+            "    ' 受注 is the old table, kept for reference\n"
+            '    Rem DoCmd.OpenQuery "受注"\n'
+            'End Sub\n')
+    root = _workspace(tmp_path, staging_text="", bundle_text=menu)
+    tables = root / ".ak" / "bundles" / "2026-09-04-abcdef12" / "databases" / "tables.json"
+    tables.write_text(json.dumps([{"name": "受注データ", "database_id": "FRONTEND"},
+                                  {"name": "受注", "database_id": "FRONTEND"}],
+                                 ensure_ascii=False), encoding="utf-8")
+    derived = _derive(root)
+    labels = {node["id"]: node["label"] for node in derived["nodes"]}
+    targets = sorted(labels[e["target"]] for e in derived["edges"])
+    assert targets == ["受注データ"]
