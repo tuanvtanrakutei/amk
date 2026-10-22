@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.22.1] - 2026-10-22
+
+One pull request (#139). **The catalogues print the names accepted for screens, queries and
+modules** (A107).
+
+### Fixed
+
+- `generate_catalogues.py` printed the accepted glossary names of tables and columns only.
+  Every form, report, query and module kept the kit's proposal, although the glossary has a
+  section for each. `bilingual.load_accepted_sections` now reads every section, and each
+  catalogue row looks its name up in its own object's section. A form named like its table
+  can therefore carry its own English name (A107).
+
+### Noted
+
+- BACKLOG A108: nothing checks that a phase's text agrees with the decisions taken after it.
+
 ## [2.22.0] - 2026-10-22
 
 Two pull requests (#136, #137). **The catalogues count writers, joins and references
