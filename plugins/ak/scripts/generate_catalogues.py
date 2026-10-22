@@ -196,6 +196,7 @@ class Naming:
     def __init__(self, package: Path, glossary: Path) -> None:
         self.terms = bilingual_contract.load_terms(package, glossary)
         self.accepted = bilingual_contract.load_accepted(glossary)
+        self.sections = bilingual_contract.load_accepted_sections(glossary)
         self._cache: dict[str, Any] = {}
 
     def of(self, name: str) -> Any:
@@ -208,7 +209,13 @@ class Naming:
         """`商品コード (product_cd?)` - the `?` marks a proposal nobody has accepted."""
         return self.of(name).bilingual()
 
-    def english(self, name: str) -> str:
+    def english(self, name: str, kind: str = "") -> str:
+        """`kind` is the glossary section of the object printed (`tables`, `columns`,
+        `screens`, `queries`, `modules`); a name accepted there wins, so a form and the
+        table it shows can carry different English names."""
+        accepted = self.sections.get(kind, {}).get(name) if kind else None
+        if accepted:
+            return f"`{accepted}`"
         rendered = self.of(name)
         if not rendered.english:
             return "_no term matched_"
@@ -594,7 +601,7 @@ def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
         is_linked = bool(metadata.get("linked")) or key in linked_by_name
         primary = key_fields[key]["primary"]
         out.append(
-            f"| {number} | `{escape(name)}` | {naming.english(name)} | "
+            f"| {number} | `{escape(name)}` | {naming.english(name, 'tables')} | "
             f"{escape(database)} | {'yes' if is_linked else 'no'} | "
             f"{_source_table_cell(table)} | {len(by_table[key])} | "
             f"{'`' + '`, `'.join(escape(p) for p in primary) + '`' if primary else '**none**'} | "
@@ -747,7 +754,7 @@ def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
             column = field.get("name", "")
             type_text, _ = declared_type(field, types)
             out.append(
-                f"| {number} | `{escape(column)}` | {naming.english(column)} | "
+                f"| {number} | `{escape(column)}` | {naming.english(column, 'columns')} | "
                 f"{escape(type_text)} | {target_proposal(field, types)} | "
                 f"{'PK' if column in primary else '—'} | — | "
                 f"{'yes' if field.get('required') else 'no'} | "
@@ -795,7 +802,7 @@ def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
         for column, shape_set in sorted(inconsistent.items(),
                                         key=lambda kv: (-len(kv[1]), kv[0])):
             rendered = ", ".join(sorted(described(s) for s in shape_set))
-            out.append(f"| `{escape(column)}` {naming.english(column)} | "
+            out.append(f"| `{escape(column)}` {naming.english(column, 'columns')} | "
                        f"{escape(rendered)} | {len(holders[column])} |")
         worst = max(inconsistent.items(), key=lambda kv: len(kv[1]))
         out += [
@@ -1196,7 +1203,7 @@ def screen_catalogue(app_id: str, bundle: Path, facts_dir: Path,
                 f"`{escape(name)}` | "
                 f"{('`' + escape(title) + '`') if title else '—'} | "
                 f"{view} | {editable} | "
-                f"{naming.english(name)} | "
+                f"{naming.english(name, 'screens')} | "
                 f"{escape(database)} | "
                 f"{('`' + escape(source) + '`') if source else '**none declared**'} | "
                 f"{len(bound)} | {len(events)} | "
@@ -1317,7 +1324,7 @@ def _per_object_behaviour(bundle: Path, forms: list[dict], reports: list[dict],
             totals["writes"] += len(writes)
             totals["hidden"] += len(hidden)
             body.append(
-                f"| `{escape(name)}` | {naming.english(name)} | {kind} | "
+                f"| `{escape(name)}` | {naming.english(name, 'screens')} | {kind} | "
                 + (", ".join(f"`{escape(n)}`" for _, n in opens) or "—") + " | "
                 + (", ".join(f"`{escape(e)}`" for _, e in built) or "—") + " | "
                 + (", ".join(f"{v} `{escape(n)}`" for v, n in writes) or "—") + " | "
@@ -1447,7 +1454,7 @@ def logic_catalogue(app_id: str, bundle: Path, derived: dict | None,
         database, name = query.get("database_id", ""), query.get("name", "")
         verb = verbs[(database, name)]
         out.append(
-            f"| {number} | `{escape(name)}` | {naming.english(name)} | "
+            f"| {number} | `{escape(name)}` | {naming.english(name, 'queries')} | "
             f"{escape(database)} | {('**' + verb + '**') if verb in writes else verb} | "
             f"{referenced.get((database, 'query', name), 0)} | {NEEDS_DOC} |"
         )
@@ -1478,7 +1485,7 @@ def logic_catalogue(app_id: str, bundle: Path, derived: dict | None,
     for number, module in enumerate(sorted(modules, key=lambda m: (m.get("database_id", ""),
                                                                    m.get("name", ""))), 1):
         database, name = module.get("database_id", ""), module.get("name", "")
-        out.append(f"| {number} | `{escape(name)}` | {naming.english(name)} | "
+        out.append(f"| {number} | `{escape(name)}` | {naming.english(name, 'modules')} | "
                    f"{escape(database)} | "
                    f"{referenced.get((database, 'module', name), 0)} |")
 

@@ -268,6 +268,32 @@ def compose(
     return Rendered(name, english, used, covered, provenance)
 
 
+GLOSSARY_SECTIONS = ("tables", "columns", "screens", "queries", "modules", "terms")
+
+
+def load_accepted_sections(glossary_path: Path) -> dict[str, dict[str, str]]:
+    """Accepted names per glossary section, so one production name can be two objects.
+
+    An Access file may name a table and a form alike (a datasheet form over its table); the
+    flat map of `load_accepted` keeps one English name per Japanese name, and leaves out the
+    screen, query and module sections entirely. A catalogue row knows what kind of object
+    it prints and looks its name up in that section.
+    """
+    if not glossary_path.is_file():
+        return {}
+    import yaml
+
+    data = yaml.safe_load(glossary_path.read_text(encoding="utf-8")) or {}
+    found: dict[str, dict[str, str]] = {}
+    for section in GLOSSARY_SECTIONS:
+        for japanese, entry in (data.get(section) or {}).items():
+            if isinstance(entry, dict) and entry.get("status") == "accepted" and entry.get("en"):
+                found.setdefault(section, {})[japanese] = str(entry["en"])
+            elif isinstance(entry, str):
+                found.setdefault(section, {})[japanese] = entry
+    return found
+
+
 def load_accepted(glossary_path: Path) -> dict[str, str]:
     """Names a person has accepted or overridden. These always win.
 

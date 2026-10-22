@@ -190,6 +190,28 @@ def test_only_accepted_entries_are_honoured(tmp_path: Path) -> None:
     )
 
 
+def test_accepted_names_are_kept_per_section(tmp_path: Path) -> None:
+    """A table and the datasheet form over it share a name; each keeps its own English."""
+    path = tmp_path / "glossary.yaml"
+    io.open(path, "w", encoding="utf-8").write(
+        'tables:\n'
+        '  "注文データ": {en: "order", status: "accepted"}\n'
+        'screens:\n'
+        '  "注文データ": {en: "order_sheet", status: "accepted"}\n'
+        '  "注文照会": {en: "order_inquiry", status: "proposed"}\n'
+        'queries:\n'
+        '  "注文集計作成": {en: "build_order_summary", status: "accepted"}\n'
+        'modules:\n'
+        '  "共通処理": {en: "common", status: "accepted"}\n'
+    )
+    sections = bl.load_accepted_sections(path)
+    assert sections["tables"] == {"注文データ": "order"}
+    assert sections["screens"] == {"注文データ": "order_sheet"}
+    assert sections["queries"] == {"注文集計作成": "build_order_summary"}
+    assert sections["modules"] == {"共通処理": "common"}
+    assert bl.load_accepted_sections(tmp_path / "absent.yaml") == {}
+
+
 def test_a_roman_numeral_term_does_not_capture_the_plain_letter() -> None:
     """NFKC makes `Ⅰ` and `I` the same character.
 

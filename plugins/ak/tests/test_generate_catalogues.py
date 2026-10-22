@@ -816,3 +816,20 @@ def test_a_recordset_writer_reaches_the_written_by_column(workspace: Path) -> No
     row = next(line for line in data.splitlines() if line.startswith("| ")
                and "| `WK出荷集計` |" in line)
     assert "3 writer(s): DELETE, RECORDSET, SELECT INTO" in row
+
+
+def test_an_accepted_name_is_read_from_the_section_of_its_object(tmp_path: Path) -> None:
+    """A form named like its table, and a query or module, print the name accepted for them."""
+    glossary = tmp_path / "glossary.yaml"
+    io.open(glossary, "w", encoding="utf-8").write(
+        'tables:\n'
+        '  "注文データ": {en: "order", status: "accepted"}\n'
+        'screens:\n'
+        '  "注文データ": {en: "order_sheet", status: "accepted"}\n'
+        'queries:\n'
+        '  "注文集計作成": {en: "build_order_summary", status: "accepted"}\n')
+    naming = catalogues.Naming(PACKAGE, glossary)
+    assert naming.english("注文データ", "tables") == "`order`"
+    assert naming.english("注文データ", "screens") == "`order_sheet`"
+    assert naming.english("注文集計作成", "queries") == "`build_order_summary`"
+    assert naming.english("注文集計作成", "modules") != "`build_order_summary`"
