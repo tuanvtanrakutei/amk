@@ -12,6 +12,51 @@ that it should now work.
 
 ## Open
 
+### A109 - a report sharing a form's name lost its id, and a form lost its handler count
+
+**Found 2026-10-22, in an independent review of one application's generated catalogues.**
+Three defects in the catalogue generator, each producing a row that looked right:
+
+- **A report sharing a form's name showed the form's `F-` id.** `screen_indices` mapped
+  object name to id, so the report's own entry (`<name> (report)` in the register) never
+  matched, and its row carried the form's id. `ui/controls.json` was keyed the same way, so
+  the report's controls replaced the form's, and the form's button left the interactive
+  controls table.
+- **A control event handler named in the local codepage was not an event procedure.** The
+  deriver's `EVENT_RE` took `[A-Za-z0-9_]` names only, so a form whose only code was
+  `Private Sub cmd<non-ASCII>_Click()` read `Event procedures 0`.
+  `export_completeness.PROCEDURE_RE` had already been fixed for the same reason.
+- **Two texts a reader could not use.** The Screen Catalogue intro ended `Still open: 7.`,
+  where 7 was a Q&A register ID, not a count. Data catalogue §2.2 said "a key is expected
+  here" on the referencing side of a join: an order table's store-code column joined to the
+  store master.
+
+Changed:
+
+- `object_indices` maps (kind, name) to the `F-` id. A title ending ` (report)`, or an
+  entry with a `kind`, names one kind. A plain title answers for both kinds unless another
+  entry names that kind. `screen_indices` keeps its meaning (forms by name) and reads
+  through it, so the wireframe builder and the runtime capture are unchanged.
+  `controls_by_kind` keys `ui/controls.json` by (kind, object).
+- `EVENT_RE` takes `\w` names and any of `Private|Public|Friend|Static`. It counts every
+  `Sub <control>_<Event>` in the object's code, whatever script the control name uses, and
+  form events as before.
+- The register line says what each figure counts: `The Q&A register records N question(s);
+  M of them name a screen.` and `Not yet answered: K question(s), Q&A ID(s) …`.
+- §2.2 asks `referenced_side` about each unkeyed table. A table is the referencing side when,
+  in every join it makes on that column, the other side's columns are a declared key (primary,
+  or a single-column unique index), or more tables join to them than it joins to. Such a row
+  reads `referencing side`. A pair joined only to each other still flags both.
+
+Not yet done:
+
+- The direction of a join (`FROM a LEFT JOIN b`: b is the target) is not recorded by
+  `sql_relationships.analyse`, which orders each pair, so it cannot break a tie.
+- Uniqueness in SAMPLE_DATA is not read. A column unique in the sample would settle a pair
+  that the two rules above leave open.
+- No real application has been re-run since the change; the catalogue rows the review quoted
+  are not yet confirmed against a regenerated catalogue.
+
 ### A108 - nothing checks that a phase's text agrees with the decisions taken after it
 
 **Found 2026-10-22, in an independent review of one application's five phases.** Every

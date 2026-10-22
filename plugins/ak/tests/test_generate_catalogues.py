@@ -833,3 +833,101 @@ def test_an_accepted_name_is_read_from_the_section_of_its_object(tmp_path: Path)
     assert naming.english("注文データ", "screens") == "`order_sheet`"
     assert naming.english("注文集計作成", "queries") == "`build_order_summary`"
     assert naming.english("注文集計作成", "modules") != "`build_order_summary`"
+
+
+# --- A109: a form and a report sharing a name, open-question ids, referencing side ---
+
+
+def _form_and_report_sharing_a_name(workspace: Path) -> None:
+    """A form and a report both named `OrderSlip`, each with its own `F-` in Phase 2."""
+    bundle = workspace / ".ak" / "bundles" / "bundle-abc"
+    write(bundle / "ui" / "forms" / "inventory.json", [
+        {"database_id": FE, "name": "メインメニュー", "kind": "form"},
+        {"database_id": FE, "name": "OrderSlip", "kind": "form"},
+    ])
+    write(bundle / "ui" / "reports" / "inventory.json", [
+        {"database_id": FE, "name": "OrderSlip", "kind": "report"},
+    ])
+    # The report's record comes last, which is the order that hid the form's button.
+    write(bundle / "ui" / "controls.json", [
+        {"database_id": FE, "kind": "form", "object": "OrderSlip", "controls": [
+            {"name": "txtCode", "type": 109},
+            {"name": "btnPrint", "type": 104, "caption": "Print",
+             "on_click": "[Event Procedure]"},
+        ]},
+        {"database_id": FE, "kind": "report", "object": "OrderSlip", "controls": [
+            {"name": "lblTitle", "type": 100},
+            {"name": "txtCode", "type": 109},
+        ]},
+    ])
+    write(workspace / "output" / "registers" / "T01_Identifiers.json", {"entries": [
+        {"id": "F-001", "namespace": "F-", "title": "メインメニュー"},
+        {"id": "F-002", "namespace": "F-", "title": "OrderSlip"},
+        {"id": "F-003", "namespace": "F-", "title": "OrderSlip (report)"},
+    ]})
+
+
+def test_a_report_sharing_a_forms_name_keeps_its_own_phase2_id(workspace: Path) -> None:
+    """A109. Keyed by name alone, the report showed the form's `F-` and its own vanished."""
+    _form_and_report_sharing_a_name(workspace)
+    screens = build(workspace)["T01_ScreenCatalogue.md"]
+    forms = screens.split("## Forms")[1].split("## Reports")[0]
+    reports = screens.split("## Reports")[1].split("\n## ")[0]
+    form_row = next(line for line in forms.splitlines() if "| `OrderSlip` |" in line)
+    report_row = next(line for line in reports.splitlines() if "| `OrderSlip` |" in line)
+    assert "**F-002**" in form_row
+    assert "**F-003**" in report_row
+    # A title with no suffix still answers for the one object carrying that name.
+    assert catalogues.object_indices(workspace / "output")[("form", "メインメニュー")] == "F-001"
+    assert catalogues.screen_indices(workspace / "output")["OrderSlip"] == "F-002"
+
+
+def test_a_report_sharing_a_forms_name_does_not_hide_the_forms_controls(
+    workspace: Path,
+) -> None:
+    """A109. The report's controls replaced the form's, so the form's button was not listed."""
+    _form_and_report_sharing_a_name(workspace)
+    screens = build(workspace)["T01_ScreenCatalogue.md"]
+    controls = screens.split("## Interactive controls")[1].split("\n## ")[0]
+    assert "| `OrderSlip` | `btnPrint` | button |" in controls
+
+
+def test_the_open_questions_say_they_are_register_ids() -> None:
+    """A109. "Still open: 7." read as a count of seven; it was the ID of one question."""
+    record = {
+        "register": [{"id": "3", "screen": ""}, {"id": "7", "screen": ""}],
+        "findings": [{"id": "7", "code": "NOT_ANSWERED"},
+                     {"id": "3,7", "code": "NO_SCREEN_NAMED"}],
+    }
+    text = catalogues.register_headline(record)
+    assert "Still open: 7." not in text
+    assert "The Q&A register records 2 question(s); 0 of them name a screen." in text
+    assert "Not yet answered: 1 question(s), Q&A ID 7." in text
+
+
+def test_the_referencing_side_of_a_join_is_not_asked_for_a_key(workspace: Path) -> None:
+    """A109. An order table's store-code column, joined to the store master, read
+    "a key is expected here". Only the referenced side - the master - is flagged."""
+    bundle = workspace / ".ak" / "bundles" / "bundle-abc"
+    tables = json.loads((bundle / "databases" / "tables.json").read_text(encoding="utf-8"))
+    fields = json.loads((bundle / "databases" / "fields.json").read_text(encoding="utf-8"))
+    for table in ("StoreMaster", "OrderLines", "ReturnLines"):
+        tables.append({"database_id": BE, "name": table, "kind": "table", "metadata": {}})
+        fields.append({"database_id": BE, "name": "StoreCode", "table": table, "type": 4,
+                       "size": 4, "required": False})
+    write(bundle / "databases" / "tables.json", tables)
+    write(bundle / "databases" / "fields.json", fields)
+    sql = bundle / "code" / "access-sql"
+    io.open(sql / "aaa.txt", "w", encoding="utf-8").write(
+        "SELECT * FROM OrderLines LEFT JOIN StoreMaster "
+        "ON OrderLines.StoreCode = StoreMaster.StoreCode;")
+    io.open(sql / "bbb.txt", "w", encoding="utf-8").write(
+        "SELECT * FROM ReturnLines INNER JOIN StoreMaster "
+        "ON ReturnLines.StoreCode = StoreMaster.StoreCode;")
+    data = build(workspace)["T01_DataCatalogue.md"]
+    section = data.split("### 2.2")[1].split("## 3.")[0]
+    rows = {line.split(" | ")[0]: line for line in section.splitlines() if line.startswith("| `")}
+    assert "**a key is expected here and none is declared**" in rows["| `StoreMaster`"]
+    assert "a key is expected" not in rows["| `OrderLines`"]
+    assert "a key is expected" not in rows["| `ReturnLines`"]
+    assert "referencing side - it joins to a column more tables join to" in rows["| `OrderLines`"]

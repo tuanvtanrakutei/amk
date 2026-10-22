@@ -104,7 +104,12 @@ CONTROL_SOURCE_RE = re.compile(r'(?<![A-Za-z])ControlSource\s*=\s*"([^"]*)"')
 # Not preceded by a letter: SaveAsText writes OLEClass ="<display name>" beside the
 # real Class ="<ProgID>", and matching both reports a caption as a control.
 CLASS_RE = re.compile(r'(?<![A-Za-z])Class\s*=\s*"([^"]+)"')
-EVENT_RE = re.compile(r'(?m)^\s*(?:Private|Public)?\s*Sub\s+([A-Za-z0-9_]+_[A-Za-z0-9_]+)\s*\(')
+# `<control>_<Event>` and `Form_<Event>`. `\w`, not `[A-Za-z0-9_]`: VBA takes an
+# identifier in the local codepage, and a control named in it - `cmd<non-ASCII>_Click`
+# - was not counted, so a form whose only code was that handler read `Event
+# procedures 0` (A109; `export_completeness.PROCEDURE_RE` is the same lesson).
+EVENT_RE = re.compile(
+    r'(?m)^[ \t]*(?:(?:Private|Public|Friend|Static)[ \t]+)*Sub[ \t]+(\w+_\w+)[ \t]*\(')
 NAME_RE = re.compile(r'(?<![A-Za-z])Name\s*=\s*"([^"]*)"')
 
 
