@@ -456,6 +456,58 @@ def _column_list(columns: tuple[str, ...]) -> str:
     return f"({rendered})" if len(columns) > 1 else rendered
 
 
+def referenced_side(table: str, column: str, relationships: list,
+                    key_fields: dict[tuple[str, str], dict[str, list[str]]],
+                    ) -> str | None:
+    """Why `table` is only the referencing side of its joins on `column`, or None.
+
+    A join has a referencing side and a referenced side, and only the referenced side's
+    column is a key. §2.2 flagged both, so an order table's store-code column joined to
+    the store master read "a key is expected here" (A109). The SQL does not say which
+    side is which, so two signals decide it, and either is enough:
+
+      - the other side's columns are declared as its primary key or a unique index;
+      - the other side is joined on those columns by more tables than this one is on
+        `column`. A master is what several tables point at; the tables pointing at it
+        join to it alone.
+
+    `table` is the referencing side only when every join it makes on `column` reads that
+    way. Otherwise - two tables joined to each other and nothing else, say - both stay
+    plausible keys and the caller keeps flagging them.
+    """
+    def sides(relationship: Any) -> list[tuple[str, str, str, tuple[str, ...]]]:
+        return [(relationship.left_table, relationship.left_column,
+                 relationship.right_table, relationship.right_columns),
+                (relationship.right_table, relationship.right_column,
+                 relationship.left_table, relationship.left_columns)]
+
+    partners: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for relationship in relationships:
+        for mine, my_columns, other, _ in sides(relationship):
+            partners[(mine, my_columns)].add(other)
+
+    def declared_key(name: str, columns: tuple[str, ...]) -> bool:
+        # `unique` pools the fields of every unique index, so only a single column can
+        # be matched against it; a primary key is matched as the whole column set.
+        wanted = set(columns)
+        return any(wanted == set(keys["primary"])
+                   or (len(wanted) == 1 and wanted <= set(keys["unique"]))
+                   for (_, keyed), keys in list(key_fields.items()) if keyed == name)
+
+    reasons: set[str] = set()
+    for relationship in relationships:
+        for mine, my_columns, other, other_columns in sides(relationship):
+            if mine != table or my_columns != column or other == table:
+                continue
+            if declared_key(other, other_columns):
+                reasons.add("a declared key")
+            elif len(partners[(other, ", ".join(other_columns))]) > len(partners[(table, column)]):
+                reasons.add("a column more tables join to")
+            else:
+                return None
+    return " or ".join(sorted(reasons)) or None
+
+
 def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
                    sql: Any, naming: Any, writes: Any, meaning: Any) -> str:
     tables = rows_of(read_json(bundle / "databases" / "tables.json"))
@@ -707,6 +759,12 @@ def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
             f"{len(real_candidates)} table objects have no declared primary key but are "
             "joined on a column, which is that column acting as a key in practice.",
             "",
+            "A join has two sides, and only the referenced side's column is a key. A row "
+            "reads `referencing side` where the other side of every join it makes on "
+            "that column is the master: its columns are a declared key, or more tables "
+            "join to them than this table joins to. A row still flagged is one where "
+            "either side could be the key.",
+            "",
             "**This cannot be confirmed from the evidence supplied.** Proving a column "
             "is unique requires rows, which means SAMPLE_DATA. A join tells you the "
             "column is used to identify a row; it does not tell you that it does so "
@@ -717,8 +775,12 @@ def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
         ]
         for database, name, columns in sorted(real_candidates):
             column, count = columns[0]
+            points_at = referenced_side(name, column, sql.relationships, key_fields)
             reads = ("work table by naming convention - no key expected"
                      if sql_contract.is_work_table(name) else
+                     f"referencing side - it joins to {points_at} (§2.1), so no key "
+                     "is expected here"
+                     if points_at else
                      "**a key is expected here and none is declared**")
             out.append(f"| `{escape(name)}` | {escape(database)} | "
                        f"`{escape(column)}` | {count} | {reads} |")
@@ -922,16 +984,23 @@ def register_headline(record: dict | None) -> str:
     with_screen = [row for row in register if str(row.get("screen") or "").strip()]
     unanswered = [f["id"] for f in findings if f.get("code") == "NOT_ANSWERED"]
     hollow = [f["id"] for f in findings if f.get("code") == "ANSWERED_WITHOUT_AN_ANSWER"]
-    parts = [f"{len(register)} recorded question(s) in the Q&A register, "
-             f"{len(with_screen)} of which name a screen."]
+    # Every figure says what it counts, and an id says it is a Q&A register ID. The line
+    # read "2 recorded question(s) ... Still open: 7." and a reader could not tell that
+    # the 7 was a question's ID rather than a count of seven (A109).
+    def ids(values: list[str]) -> str:
+        return ("Q&A ID " if len(values) == 1 else "Q&A IDs ") + ", ".join(values)
+
+    parts = [f"The Q&A register records {len(register)} question(s); "
+             f"{len(with_screen)} of them name a screen."]
     if not with_screen:
         parts.append("**None names a screen**, so no answer below can be attributed to "
                      "a row in this table; the register has the column and it is empty.")
     if hollow:
-        parts.append(f"**{', '.join(hollow)} is recorded as answered and its page holds "
-                     "no answer** - it is not a closed question.")
+        parts.append(f"**{ids(hollow)}: recorded as answered, and the page holds "
+                     "no answer** - not a closed question.")
     if unanswered:
-        parts.append(f"Still open: {', '.join(unanswered)}.")
+        parts.append(f"Not yet answered: {len(unanswered)} question(s), "
+                     f"{ids(unanswered)}.")
     return " ".join(parts)
 
 
@@ -985,14 +1054,50 @@ def _view_cells(kind: str, text: str, controls: list[dict]) -> tuple[str, str]:
     return view, f"{editable} of {len(fields)}"
 
 
+def controls_by_kind(bundle: Path) -> dict[tuple[str, str], list[dict]]:
+    """`ui/controls.json` per (kind, object name).
+
+    Keyed by name alone, a report sharing a form's name replaced the form's controls,
+    and the form's buttons left the catalogue (A109). A record with no `kind` is read
+    as a form, as `build_wireframes.py` reads it.
+    """
+    found: dict[tuple[str, str], list[dict]] = {}
+    for record in rows_of(read_json(bundle / "ui" / "controls.json")):
+        kind = str(record.get("kind") or "form")
+        found[(kind, str(record.get("object") or ""))] = record.get("controls") or []
+    return found
+
+
 def screen_indices(output: Path) -> dict[str, str]:
-    """`F-nnn` per object name, read from the phase register.
+    """`F-nnn` per form name, read from the phase register.
+
+    Forms only: a report that shares a form's name has its own entry, read by
+    `object_indices`, and a name-only map can hold one of the two (A109).
+    """
+    return {name: index for (kind, name), index in object_indices(output).items()
+            if kind == "form"}
+
+
+# Phase 2 gives a report that shares a form's name its own `F-` entry, titled
+# `<name> (report)`; `modernize/scripts/workspace_inventory.py` reads the same suffix.
+REPORT_TITLE_SUFFIX = " (report)"
+
+
+def object_indices(output: Path) -> dict[tuple[str, str], str]:
+    """`F-nnn` per (kind, object name), read from the phase register.
 
     The catalogue and Phase 2 had no shared key. Phase 2 calls a screen `F-006` and the
     catalogue listed it under `入荷実績入力` with a `No.` column that is a display row
     number and changes when the bundle does - so a reader holding an `F-nnn` could not
     find the row, and a reader holding a row could not find the analysis. The index is
     allocated by the phase, so the catalogue reads it rather than inventing one.
+
+    Keyed by kind as well as name, because Access lets a form and a report share a name
+    and Phase 2 indexes them apart. Keyed by name alone, the report's row showed the
+    form's `F-` and its own never appeared (A109). An entry with a `kind` of `form` or
+    `report`, or a title ending ` (report)`, names one kind. A plain title names
+    whichever object carries that name, so it answers for both kinds unless an entry
+    names the other kind explicitly.
     """
     # The register lives in `output/registers/` (output-contract `registers_subdirectory`),
     # and only `output/` was searched, so every `Phase 2` cell read `—` (A90). Both
@@ -1005,9 +1110,24 @@ def screen_indices(output: Path) -> dict[str, str]:
         data = json.loads(matches[0].read_text(encoding="utf-8") or "{}")
     except json.JSONDecodeError:
         return {}
-    return {str(e.get("title") or ""): str(e.get("id") or "")
-            for e in (data.get("entries") or data.get("items") or [])
-            if isinstance(e, dict) and str(e.get("namespace") or "") == "F-"}
+    explicit: dict[tuple[str, str], str] = {}
+    plain: dict[str, str] = {}
+    for e in data.get("entries") or data.get("items") or []:
+        if not isinstance(e, dict) or str(e.get("namespace") or "") != "F-":
+            continue
+        title, index = str(e.get("title") or ""), str(e.get("id") or "")
+        kind = str(e.get("kind") or "").lower()
+        if kind not in ("form", "report") and title.endswith(REPORT_TITLE_SUFFIX):
+            kind, title = "report", title[: -len(REPORT_TITLE_SUFFIX)]
+        if kind in ("form", "report"):
+            explicit.setdefault((kind, title), index)
+        else:
+            plain.setdefault(title, index)
+    indices = dict(explicit)
+    for title, index in plain.items():
+        for kind in ("form", "report"):
+            indices.setdefault((kind, title), index)
+    return indices
 
 
 def _interactive_controls(bundle: Path, forms: list, reports: list,
@@ -1023,16 +1143,14 @@ def _interactive_controls(bundle: Path, forms: list, reports: list,
     position the eye and carry no decision; the grouping they imply is a screenshot
     question, not a row here.
     """
-    controls_by_object: dict[str, list[dict]] = {}
-    for record in rows_of(read_json(bundle / "ui" / "controls.json")):
-        controls_by_object[str(record.get("object") or "")] = record.get("controls") or []
+    controls_by_object = controls_by_kind(bundle)
 
     body: list[str] = []
     groups_seen = decoration = interactive = fields = choices_shown = 0
     for kind, items in (("form", forms), ("report", reports)):
         for item in sorted(items, key=lambda i: (i.get("database_id", ""), i.get("name", ""))):
             name = str(item.get("name") or "")
-            controls = controls_by_object.get(name, [])
+            controls = controls_by_object.get((kind, name), [])
             if not controls:
                 continue
             text = item.get("text") or ""
@@ -1117,7 +1235,7 @@ def screen_catalogue(app_id: str, bundle: Path, facts_dir: Path,
                      derived: dict | None, naming: Any, meaning: Any,
                      shapes: dict[tuple[str, str, str], dict] | None = None,
                      answers: dict | None = None,
-                     indices: dict[str, str] | None = None) -> str:
+                     indices: dict[tuple[str, str], str] | None = None) -> str:
     forms = rows_of(read_json(bundle / "ui" / "forms" / "inventory.json"))
     reports = rows_of(read_json(bundle / "ui" / "reports" / "inventory.json"))
     macros = rows_of(read_json(bundle / "ui" / "macros" / "inventory.json"))
@@ -1163,9 +1281,7 @@ def screen_catalogue(app_id: str, bundle: Path, facts_dir: Path,
         "",
     ]
 
-    controls_by_object: dict[str, list[dict]] = {}
-    for record in rows_of(read_json(bundle / "ui" / "controls.json")):
-        controls_by_object[str(record.get("object") or "")] = record.get("controls") or []
+    controls_by_object = controls_by_kind(bundle)
     out += [
         "`View` is how the form presents its records and what it lets an operator change. "
         "A form whose definition does not state a view is a **continuous** form: its Detail "
@@ -1195,9 +1311,9 @@ def screen_catalogue(app_id: str, bundle: Path, facts_dir: Path,
             events = fact.get("event_procedures") or []
             controls = fact.get("embedded_controls") or []
             title = behaviour_contract.caption(item.get("text") or "")
-            index = (indices or {}).get(name, "")
+            index = (indices or {}).get((kind, name), "")
             view, editable = _view_cells(kind, str(item.get("text") or ""),
-                                         controls_by_object.get(name, []))
+                                         controls_by_object.get((kind, name), []))
             out.append(
                 f"| {number} | {('**' + index + '**') if index else '—'} | "
                 f"`{escape(name)}` | "
@@ -1303,9 +1419,7 @@ def _per_object_behaviour(bundle: Path, forms: list[dict], reports: list[dict],
     """
     tables = {str(row.get("name") or "")
               for row in rows_of(read_json(bundle / "databases" / "tables.json"))}
-    controls_by_object: dict[str, list[dict]] = {}
-    for record in rows_of(read_json(bundle / "ui" / "controls.json")):
-        controls_by_object[str(record.get("object") or "")] = record.get("controls") or []
+    controls_by_object = controls_by_kind(bundle)
 
     body: list[str] = []
     totals = {"opens": 0, "built": 0, "writes": 0, "hidden": 0}
@@ -1316,7 +1430,7 @@ def _per_object_behaviour(bundle: Path, forms: list[dict], reports: list[dict],
             opens = behaviour_contract.opens(text)
             built = behaviour_contract.built_opens(text)
             writes = behaviour_contract.writes(text, tables)
-            hidden = behaviour_contract.hidden_controls(controls_by_object.get(name, []))
+            hidden = behaviour_contract.hidden_controls(controls_by_object.get((kind, name), []))
             if not (opens or built or writes or hidden):
                 continue
             totals["opens"] += len(opens)
@@ -1653,7 +1767,7 @@ def main() -> int:
         f"{app_id}_ScreenCatalogue.md": screen_catalogue(
             app_id, bundle, space.extracted("ui-facts"), derived, naming, meaning,
             definition_shapes(space), recorded_answers(space),
-            screen_indices(space.output_dir())),
+            object_indices(space.output_dir())),
         f"{app_id}_LogicCatalogue.md": logic_catalogue(
             app_id, bundle, derived, sql, naming, meaning),
     }

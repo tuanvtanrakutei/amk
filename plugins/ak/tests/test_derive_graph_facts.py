@@ -173,6 +173,32 @@ def test_a_record_source_wrapped_onto_continuation_lines_is_read_whole() -> None
         "SELECT 受注.日付, 受注.店舗 FROM 受注 GROUP BY 受注.日付, 受注.店舗;")
 
 
+def test_a_control_event_named_outside_ascii_is_an_event_procedure() -> None:
+    """A109. `[A-Za-z0-9_]` skipped a handler whose control is named in the local codepage.
+
+    A form whose only code was such a handler read `Event procedures 0` in the Screen
+    Catalogue. Form events and ASCII-named handlers are still counted; a function is not.
+    """
+    text = (
+        'Begin Form\n'
+        '    Caption ="sample"\n'
+        'End\n'
+        'CodeBehindForm\n'
+        'Option Compare Database\n'
+        'Private Sub btn確定_Click()\n'
+        '    DoCmd.Close\n'
+        'End Sub\n'
+        'Private Sub Form_Load()\n'
+        'End Sub\n'
+        'Sub cmdHelp_Click()\n'
+        'End Sub\n'
+        'Private Function 合計_値()\n'
+        'End Function\n'
+    )
+    events = deriver.distil_object(text, "form")["event_procedures"]
+    assert events == sorted(["Form_Load", "btn確定_Click", "cmdHelp_Click"])
+
+
 def test_a_form_named_like_a_table_is_referenced_only_where_it_is_opened(tmp_path: Path) -> None:
     """A90. Every line naming the table also counted as a reference to the form."""
     menu = ('Private Sub cmd_Click()\n'
