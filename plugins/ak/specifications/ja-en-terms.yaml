@@ -297,6 +297,10 @@ terms:
   用紙: {en: paper, provenance: analysis}
   サイズ: {en: size, provenance: analysis}
   レポート: {en: report, provenance: analysis}
+  最小: {en: min, provenance: analysis}
+  サラダ: {en: salad, provenance: analysis}
+  サラダバー: {en: salad_bar, provenance: analysis}
+  食材: {en: ingredient, provenance: analysis}
 
 # Terms deliberately absent, so a gap is a decision rather than an oversight.
 not_translated:

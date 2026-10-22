@@ -325,3 +325,40 @@ def test_a_glossary_written_before_the_rename_is_read_with_the_new_label() -> No
     assert bl.compose("ＤＰコード商品", legacy, {}).provenance == bl.REFERENCE_MIX
     assert bl.normalize_provenance("A01+analysis") == bl.REFERENCE_MIX
     assert bl.normalize_provenance("analysis") == "analysis"
+
+
+# --- A104: common business words, and a Latin name carved by a one-letter term ----
+
+def test_a_latin_name_is_not_carved_by_a_one_letter_term() -> None:
+    """`Ｐ` is a term and NFKC makes it `P`, so `PaperSize` came out `p`, 11% covered."""
+    terms = {"Ｐ": {"en": "p"}, "コード": {"en": "cd"}}
+    rendered = bl.compose("PaperSize", terms, {})
+    assert rendered.english == "papersize"
+    assert rendered.is_complete
+
+
+def test_a_latin_term_still_matches_beside_japanese() -> None:
+    """The edge rule binds only where the neighbour is Latin too."""
+    terms = {"DP": {"en": "dp"}, "ＤＰコード": {"en": "dp_cd"}, "品": {"en": "goods"},
+             "C品": {"en": "c_goods"}, "Ｐ": {"en": "p"}, "数": {"en": "count"}}
+    assert bl.compose("ＤＰコード", terms, {}).english == "dp_cd"
+    assert bl.compose("C品", terms, {}).english == "c_goods"
+    assert bl.compose("Ｐ数", terms, {}).english == "p_count"
+
+
+def test_common_business_words_compose_completely() -> None:
+    """Without `納品` the composer took `品` alone and printed a wrong name as partial."""
+    terms = bl.load_terms(PACKAGE)
+    for japanese, english in {
+        "納品希望日": "goods_delivery_requested_date",
+        "納品希望日の最小": "goods_delivery_requested_date_min",
+        "入荷予定日": "receiving_scheduled_date",
+        "用紙サイズマスタ": "paper_size_master",
+        "納期種別": "due_date_kind",
+        "レポート設定マスタ": "report_settings_master",
+        "管理マスタ": "management_master",
+        "食材データ": "ingredient_data",
+        "サラダバー青果データ": "salad_bar_produce_data",
+    }.items():
+        rendered = bl.compose(japanese, terms, {})
+        assert (rendered.english, rendered.is_complete) == (english, True), japanese

@@ -24,10 +24,12 @@ Changed:
 
 - `ja-en-terms.yaml` gains `納品`, `納期`, `希望`, `予定`, `種別`, `管理`, `用紙`, `サイズ` and
   `レポート`, each with an English name no other term already uses, apart from `レポート`, which
-  shares `report` with `表`.
-
-Not yet known: a name that is already Latin, such as `PaperSize`, is still matched against
-single-letter terms and renders as `p`.
+  shares `report` with `表`. It also gains `最小` (`min`, beside `最大`), and the goods families
+  `サラダ`, `サラダバー` and `食材`.
+- A term whose edge is a Latin letter or digit matches only a whole Latin word at that edge.
+  `Ｐ` is a term, NFKC makes it `P`, and a column called `PaperSize` rendered as `p`, 11%
+  covered. It is now `papersize`, complete. `DPコード` and `C品` still match, because their other
+  side is Japanese.
 
 ### A103 - the docs validator checked registry statuses against a vocabulary nothing documents
 

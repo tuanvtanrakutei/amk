@@ -157,6 +157,26 @@ def _is_separator(char: str) -> bool:
     return unicodedata.category(char)[0] in ("P", "Z", "C")
 
 
+def _whole_latin_word(target: str, at: int, length: int) -> bool:
+    """A term whose edge is a Latin letter or digit matches only a whole Latin word there.
+
+    `Ｐ` is a term, and NFKC makes it `P`, so it matched the first letter of a column
+    called `PaperSize` and the name came out `p`, 11% covered. A name already in Latin
+    letters is its own translation; a short code may not be carved out of it. The edge
+    rule leaves `DPコード` and `C品` matching, because their other side is Japanese.
+    """
+    end = at + length
+    if _is_ascii_alnum(target[at]) and at > 0 and _is_ascii_alnum(target[at - 1]):
+        return False
+    if _is_ascii_alnum(target[end - 1]) and end < len(target) and _is_ascii_alnum(target[end]):
+        return False
+    return True
+
+
+def _is_ascii_alnum(char: str) -> bool:
+    return char.isascii() and char.isalnum()
+
+
 def normalise(text: str) -> str:
     """NFKC, because `ＦＬＧ` and `FLG` are the same term written two ways.
 
@@ -200,7 +220,7 @@ def compose(
             at = target.find(key, start)
             if at < 0:
                 break
-            if not any(consumed[at : at + len(key)]):
+            if not any(consumed[at : at + len(key)]) and _whole_latin_word(target, at, len(key)):
                 original, entry = lookup[key]
                 pieces.append((at, str(entry.get("en", "")), original))
                 for i in range(at, at + len(key)):
