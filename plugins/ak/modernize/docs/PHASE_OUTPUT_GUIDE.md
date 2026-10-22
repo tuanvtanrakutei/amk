@@ -21,7 +21,9 @@ long documents cold and guessing which one answers your question.
 | I want to understand ... | Go to |
 |---|---|
 | What screens, forms, and reports exist | Phase 2 §1 "Screen, Form, and Report Inventory" |
-| What one specific screen does, control by control | Phase 2 §3 "Per-Screen Analysis" → `### {FORM_ID} — {FORM_NAME}` |
+| What one specific screen is for, and what differs in the replacement | Phase 2 §3 "Per-Screen Analysis" → `### {FORM_ID} — {FORM_NAME}` |
+| What one specific screen does, control by control | `{APP_ID}_ScreenCatalogue.md`, and the to-be (`registers/{APP_ID}_ToBe.json`) for the replacement |
+| What was decided for the replacement, item by item | `{APP_ID}_Decisions.md` — one row per decided item, the decision in force |
 | What tables and columns the legacy DB has | Phase 1 §2 "Table and Column Inventory" |
 | What a table means in business terms | Phase 1 §3 "Key Entities and Business Meaning" |
 | Foreign keys and integrity rules | Phase 1 §4 "Relationships and Integrity Controls" |

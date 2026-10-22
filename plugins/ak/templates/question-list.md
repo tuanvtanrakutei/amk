@@ -14,8 +14,16 @@
 ## Who reads it
 
 **A person does**: the developer relaying questions to the customer and settling decisions for
-the new system, and the party each agenda is addressed to. `{{APP_ID}}_DecisionQueue.json` is
-for agents and sits beside the other registers.
+the new system, and the party each agenda is addressed to. The file says so in its own line,
+`Audience: person`, under the title. `{{APP_ID}}_DecisionQueue.json` is for agents and sits
+beside the other registers.
+
+The same command writes a third file, `{{APP_ID}}_Decisions.md` (A110), for both readers: one
+row per decided item, with the decision in force, the evidence id that records it and what it
+replaced, grouped by namespace, with the superseded decisions in a footnote list and a count
+line at the end. The question list says what is still open; the decisions page says what is
+settled. It follows rules 1 and 2 below as well, and is never overwritten when this command did
+not write it.
 
 ## What it holds
 

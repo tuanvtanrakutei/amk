@@ -1,5 +1,34 @@
 # {{APP_ID}} — Phase 2: Screen & Form Analysis
 
+Audience: person
+
+<!-- TWO LAYERS, AND WHICH ONE THIS IS (A110)
+
+     This document is in the person layer: a developer reads it once to rebuild the system.
+     The record layer - the registers, the catalogues, the target-intent records, the
+     traceability matrix, the to-be and the screen model - is read by agents. The two meet
+     on `{{APP_ID}}_Decisions.md`, which `$ak decisions` generates: one row per decided
+     item, the decision in force, and the evidence id that records it. Keep the
+     `Audience: person` line above in every language; the conformance gate looks for it.
+
+     Citation rules. When a round of decisions was applied to one application's phases,
+     nearly every sentence came to end in "Decided: ... (<evidence id>)", some carried the
+     history of a decision taken twice, per-screen field lists were pasted in, and the
+     citations per document roughly doubled. Conformance still passed. So:
+
+     1. Cite a decision by its item code - `RA-04`, `Q12`, or a decision-record row such as
+        `D-EXPORT-NAME` - never by its evidence id. Evidence ids stay for facts about the
+        legacy system.
+     2. Cite at most one code per claim, at the end of the sentence.
+     3. Put no decision history in the text: no "superseded", no "decided again", no list
+        of replaced ids. Mark a corrected sentence once with its `(E-nn)`. The history is
+        on the errata page and in `{{APP_ID}}_Decisions.md`.
+     4. A list longer than about 10 rows belongs in a catalogue; this document points to it.
+
+     The conformance gate's readability group measures 1 to 3 (`citation_density`,
+     `no_decision_history`) and warns; it never fails a run.
+-->
+
 <!--
   Characteristic claim: what each screen is, how it is reached, and who uses it.
   Definition text answers the first two. It cannot answer the third, and it cannot
@@ -17,6 +46,18 @@
 
   Delete these comment blocks as you fill the document in.
 -->
+
+What you must not get wrong:
+
+<!-- At most 7 numbered items, the first thing the reader meets. Each reads: the legacy
+     fact, then what the replacement does (item code), then the section that proves it.
+     For example:
+
+     1. A cancelled order stays in the order table with a flag set; the replacement
+        deletes it instead (RA-02). See §4.
+
+     Before anything is decided, an item states the legacy fact and points to the risk
+     that carries it. -->
 
 ## Naming Convention
 
@@ -80,8 +121,9 @@ document is JP-primary, with a Romaji alias for cross-reference. Never translate
      has to rebuild the system, and they read it once, under time pressure, looking for
      what they must not get wrong. Two habits follow:
 
-     Open with what they must not get wrong. A short numbered list, each item pointing at
-     the section that proves it. One Phase 2 was correct and unusable before it had one:
+     Open with what they must not get wrong: at most seven numbered items, each reading
+     legacy fact, then what the replacement does (item code), then the section that
+     proves it. One Phase 2 was correct and unusable before it had one:
      the fact that re-running the morning import destroys the quantities staff typed the
      night before was in the document, four sections deep, in prose.
 
@@ -119,6 +161,25 @@ document is JP-primary, with a Romaji alias for cross-reference. Never translate
      the reader because they may have acted on the earlier statement. A draft nobody
      outside the run ever saw owes nothing.
 -->
+
+## Decided for the replacement
+
+<!-- ONE table, and the only place in this document where a decision's effect is spelled
+     out. It replaces the "Decided: ..." text that otherwise ends up after every sentence
+     a decision touches. One row per decided item that changes what this phase describes:
+
+       Item                  the item code: a risk (`RA-04`), a question (`Q12`), or a
+                             decision-record row no register holds (`D-EXPORT-NAME`).
+       Decision              the word `{{APP_ID}}_Decisions.md` gives it: fix, preserve,
+                             drop, defer, or decided.
+       Effect on this phase  one sentence, with the section it changes.
+
+     No evidence id and no history: the decisions page maps each code to its record and
+     lists what it replaced. Before anything is decided, write "Nothing is decided yet."
+     under the heading and leave the table empty. -->
+
+| Item | Decision | Effect on this phase |
+|---|---|---|
 
 ## Contents
 
@@ -183,21 +244,35 @@ flowchart TD
 
 ## 3. Per-Screen Analysis
 
+<!-- The fields, the controls and the events of every screen are enumerated elsewhere,
+     generated from the bundle: `{{APP_ID}}_ScreenCatalogue.md` (record source, bound fields,
+     event procedures, what references it) and, for the replacement,
+     `registers/{{APP_ID}}_ToBe.json` and `registers/{{APP_ID}}_ScreenModel.json`, drawn in
+     `{{APP_ID}}_Wireframes.html`. A list of them pasted here is a second copy that goes
+     stale, and a reader cannot find the claim in it (A55, A110). -->
+
 ### {{F_ID}} — {{OBJECT_NAME}}
 
-- **Object:**
-- **Caption:**
 - **Purpose:**
 - **Who uses it:**
-- **Record source:**
-- **Reached from:**
-- **Preconditions:**
+- **What differs in the replacement:**
+- **Risks:**
 
-| User action | VBA event | Validation / condition | What it does | Data or file target | Evidence |
-|---|---|---|---|---|---|
+Fields, controls and events: `{{APP_ID}}_ScreenCatalogue.md` and the to-be for {{F_ID}}.
 
-<!-- One of these per screen that carries behaviour. For a screen whose behaviour is
-     a single open call, the inventory row is enough - say so rather than padding.
+<!-- One of these per screen that carries behaviour, about 150 words. For a screen whose
+     behaviour is a single open call, the inventory row is enough - say so rather than
+     padding.
+
+     Purpose      what the business uses it for, cited, or "not established".
+     Who uses it  see below.
+     What differs what the replacement does differently, each change with its item code
+                  (`RA-04`, `D-EXPORT-NAME`); "nothing decided yet" before any decision.
+     Risks        the `RA-` ids that name this screen.
+
+     The caption, the record source, the entry path and the action-to-event detail are in
+     the catalogue. Write one of them here only when the claim needs it - a hidden route,
+     a caption an operator uses for another screen - and say why in a sentence.
 
      `Who uses it` is the half of this phase's claim that definition text cannot
      answer. It comes from a DOCUMENT or an INTERVIEW or it reads "not established";
@@ -296,8 +371,8 @@ flowchart TD
      allocated into the register with nowhere in the document to appear, and four
      risks were never written down in any sentence a reader would see. -->
 
-| ID | Risk | Severity | Consequence at migration | Mitigation | Evidence |
-|---|---|---|---|---|---|
+| ID | Risk | Severity | Consequence at migration | Mitigation | Decision | Evidence |
+|---|---|---|---|---|---|---|
 
 <!-- In the register each risk carries a `needs` block (ID-11): kind DISPOSITION, party
      `decider`, default `mitigation`, and a `class` - technical, data, retired or
@@ -305,7 +380,14 @@ flowchart TD
      this row is the recommended answer, carried until the decider says otherwise, so write
      it as an action the replacement takes. When it waits on an open question, name the Q
      in it and put the Q in `depends_on`. Write "none proposed" when there is none: the risk
-     then has no default, and it blocks. -->
+     then has no default, and it blocks.
+
+     Decision holds the disposition word and the code it is recorded under, as
+     `{{APP_ID}}_Decisions.md` gives them: `fix (RA-04)`, or `drop (D-EXPORT-NAME)` when a
+     decision-record row decided it. Write `open` until it is decided. Once it is, the
+     Mitigation says what the replacement will build - the decided action - and the
+     gate's `decisions_agree` warns when the row does not name the recorded word. Keep the
+     column after Mitigation: the decision tools read the first five by position. -->
 
 ## 7. Assumptions, Unknowns, and Questions
 
@@ -322,15 +404,20 @@ flowchart TD
 <!-- REQUIRED in every phase after the first, and written BEFORE this phase's own
      unknowns and questions.
 
-     List every `UK-` and `Q` an earlier phase allocated and still open, and give each
-     a status:
+     List every `UK-` and `Q` an earlier phase allocated and left open, one compact row
+     each. The answer itself is not repeated here; it is in the row that closed it.
 
-       resolved   - this phase's evidence answers it. Cite the evidence id, and say
-                    what the answer is. Mark it resolved in the register too.
-       advanced   - not closed, but something changed. Say what.
-       unchanged  - nothing this phase read bears on it. Still say so.
-       duplicate  - it asks what another identifier already asks. Name that one and
-                    stop carrying both.
+       ID           the identifier, as the earlier phase wrote it.
+       From phase   the phase that allocated it: `Phase 1`.
+       State        `open` or `closed`. Nothing else: a closed question called
+                    "unchanged" is the defect the gate's `decisions_agree` reports.
+       Closed by    the item code that closed it - a decided item (`Q12`, `RA-04`,
+                    `D-EXPORT-NAME`), the question that answered an unknown, or the
+                    identifier it duplicates - or a dash while it is open. An answer
+                    that is a fact about the legacy system may cite its evidence id.
+
+     Close it in the register too (`resolved_by`, or `superseded_by` for a duplicate),
+     and keep this row in step when a later decision closes it.
 
      One Phase 2 skipped this section and allocated `Q108`, which asks what Phase 1's
      `Q103` already asked of the same owner about the same file. Two questions to one
@@ -341,7 +428,7 @@ flowchart TD
      open does not need a second identifier; an unknown this phase can close does not
      need carrying. -->
 
-| ID | Raised in | Status | What this phase establishes |
+| ID | From phase | State | Closed by |
 |---|---|---|---|
 
 ### Assumptions

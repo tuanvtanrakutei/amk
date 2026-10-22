@@ -12,6 +12,70 @@ that it should now work.
 
 ## Open
 
+### A110 - phase documents for people became agent records once decisions were applied
+
+**Found 2026-10-22, in an independent review of one application's five phases**, after a round of
+decisions had been applied to them. The phases are written for a developer reading once; the
+decisions are recorded for agents. Applying one to the other moved the record into the text:
+
+- nearly every sentence ended in `Decided: <word> (<evidence id>)`;
+- some sentences told the history of a decision: a list of replaced evidence ids and errata
+  numbers, "superseded", a decision "decided again";
+- per-screen field lists were pasted into a phase;
+- evidence-id citations per document roughly doubled.
+
+Conformance still passed: it checks that sections exist and ids resolve, not who the text is
+for. A108 is the same gap seen from the decisions' side.
+
+Changed (approved framework: two layers, every artefact declares its reader):
+
+- **Layers.** Person layer: phases 1-5, the errata page, the question list. Record layer:
+  registers, catalogues, target-intent records, traceability matrix, to-be, screen model.
+  Bridge: `{APP}_Decisions.md`. `output-contract.yaml` lists them under `output_layers`, and every
+  person- or bridge-layer page says `Audience: person` (or `bridge`) in one line near the top;
+  `$ak errata` and `$ak decisions` write the line into their pages.
+- **`{APP}_Decisions.md`** (`contracts/decision_page.py`, written by `$ak decisions` as its third
+  output beside the phase documents). One row per decided item - risk ids, question ids, and
+  decision-record row codes that no register holds, read from a TARGET_INTENT item's
+  `attribution.question_id` or else the `row X` of its `source_location` - with the decision in
+  force only: `Item code | About | Decision | What the replacement does | Evidence id | Replaces`,
+  grouped by namespace and sorted, superseded decisions in a footnote list, a count line at the
+  end. A decision is superseded when an erratum lists its evidence id or a later TARGET_INTENT item
+  decides the same code; also when a later record says it `replaces` that id or code, or its own
+  notes say it was `superseded by` something, so a decision recorded again under a new row code
+  does not stay in force. No date, so the same registers give the same bytes; it will not
+  overwrite a page it did not write without `--replace-handwritten`. A register whose
+  `resolved_by` points at a retired decision is printed as a note.
+- **Templates.** Every phase template states `Audience: person`, carries the four citation rules
+  in its instruction comment (cite a decision by item code, one code per claim at the end of the
+  sentence, no decision history, a list over about ten rows belongs in a catalogue), keeps the
+  must-not list at the top (at most seven, each legacy fact, what the replacement does (item
+  code), section), adds one `## Decided for the replacement` table (`Item | Decision | Effect on
+  this phase`), and gives each risk table a `Decision` column after Mitigation - after it because
+  the decision tools read the first five columns by position. Carried-forward tables are
+  `ID | From phase | State | Closed by`. Phase 2's per-screen section is purpose, who uses it,
+  what differs and risks, pointing to the screen catalogue and the to-be for fields and
+  controls. Phase 5 opens with the developer's hand-off: target scope, one row per in-scope
+  screen with its Phase 2 section, interfaces and export specification, open points (item code
+  in the second column, so `--assume` still finds a question's one row).
+- **Conformance**, readability group, WARN: `audience_declared`, `must_not_list_size`,
+  `citation_density` (`CITATION_WORDS_PER_ID = 40`: more than one evidence id per 40 words of
+  prose outside tables, code and the Evidence Register; one per 30 was tried first and every
+  phase of the reviewed application passed it narrowly), `no_decision_history` ("superseded",
+  "decided again", "re-decided", and "replaces" when it names an evidence id, an `E-` number or
+  an earlier decision; a closed row's opening state is allowed). Apparatus group, WARN:
+  `decisions_agree`, A108's first slice (below). The summary line now says `N warning(s)`.
+
+Not yet done:
+
+- No published phase has been rewritten to the new shape; the checks only warn about the old one.
+- `{APP}_Decisions.md` is not compared with the phases' `Decided for the replacement` tables:
+  nothing checks that a phase lists every decided item that changes it.
+- "What the replacement does" is the first sentence of the TARGET_INTENT statement. A record
+  whose statement is a paragraph is cut there, and the evidence id is the way to the rest.
+- The layer checks measure EN documents only, like the rest of the readability group.
+- `must_not_list_size` counts items; it does not check that each reads fact, replacement, section.
+
 ### A109 - a report sharing a form's name lost its id, and a form lost its handler count
 
 **Found 2026-10-22, in an independent review of one application's generated catalogues.**
@@ -72,13 +136,20 @@ state before the decisions:
 Conformance checks that sections and tables exist and that cited ids resolve. It does not
 compare text with decisions.
 
-Not yet done, all of it:
+First slice, in A110: `decisions_agree` (apparatus group, WARN). When the registers are loaded,
+every risk a phase allocated whose `resolved_by` is a TARGET_INTENT item recording a disposition
+must name that word (fix, preserve, drop, defer) somewhere in its risk row; and a carried-forward
+row whose state says `open`, `unchanged` or `advanced` warns when the register has closed the item.
+Each disagreement is reported. A risk row cites the item code, not the evidence id: A110's
+citation rule replaces "names its evidence id" below.
 
-- a check that each risk row names its disposition and evidence id once the decision queue
-  holds one;
+Not yet done:
+
 - a check that every `E-` entry's carriers mention the `E-` number;
-- a check that a `UK-` whose `Asked as` question is closed is closed too, both in the register
-  and in each carried-forward table.
+- a check that a `UK-` whose `Asked as` question is closed is closed too, in the register (a
+  carried-forward row is now checked against the register, not against the question);
+- a check that a Mitigation does not prescribe the opposite of its disposition: the row naming
+  the word is checked, not what the Mitigation says.
 
 ### A107 - accepted names for screens, queries and modules were never printed
 
