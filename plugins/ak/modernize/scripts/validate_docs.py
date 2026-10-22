@@ -48,7 +48,7 @@ import re
 import sys
 
 ISSUE_STATUSES = {"open", "in_progress", "resolved", "deferred", "wont_fix"}
-REGISTRY_STATUSES = {"not_started", "in_progress", "implemented", "verified", "deferred"}
+REGISTRY_STATUSES = {"not_started", "implemented", "verified", "partial", "blocked"}
 ARTIFACT_FOLDERS = [
     "Screen_plans",
     "Coding_Records",
