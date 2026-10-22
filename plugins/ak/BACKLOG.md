@@ -12,6 +12,49 @@ that it should now work.
 
 ## Open
 
+### A108 - nothing checks that a phase's text agrees with the decisions taken after it
+
+**Found 2026-10-22, in an independent review of one application's five phases.** Every
+question and risk had been decided, and conformance passed, yet the phases still described the
+state before the decisions:
+
+- in several places a risk's Mitigation prescribed the opposite of its disposition;
+- one erratum was applied nowhere, although the errata page said every corrected passage was
+  fixed in place;
+- carried-forward tables called closed questions "unchanged";
+- unknowns stayed open after their questions closed.
+
+Conformance checks that sections and tables exist and that cited ids resolve. It does not
+compare text with decisions.
+
+Not yet done, all of it:
+
+- a check that each risk row names its disposition and evidence id once the decision queue
+  holds one;
+- a check that every `E-` entry's carriers mention the `E-` number;
+- a check that a `UK-` whose `Asked as` question is closed is closed too, both in the register
+  and in each carried-forward table.
+
+### A107 - accepted names for screens, queries and modules were never printed
+
+**Found 2026-10-22, accepting a project's glossary.**
+
+- The catalogues printed the accepted names of tables and columns, but kept the proposals for
+  every form, report, query and module, although the glossary has a section for each.
+  `load_accepted` reads only `tables`, `columns` and `terms`.
+- It also keys by the Japanese name alone. A datasheet form named like its table could not
+  carry an English name of its own.
+
+Changed:
+
+- `bilingual.load_accepted_sections` returns the accepted names per glossary section.
+- `Naming.english(name, kind)` prints the name accepted in the object's own section.
+  `kind` is one of `tables`, `columns`, `screens`, `queries`, `modules`.
+- Every catalogue row passes its kind, so a form and its table print different English names.
+
+Not yet done: `annotate_bilingual` still reads the flat map, so the narratives print a
+screen's or a query's proposal, not its accepted name.
+
 ### A106 - the to-be screens could not show a deferred screen or a field decided read-only
 
 **Found 2026-10-22, after an independent review of a project's phases.** All its decisions were
