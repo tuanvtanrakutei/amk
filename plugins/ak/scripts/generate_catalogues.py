@@ -122,7 +122,17 @@ def query_verb(bundle: Path, query: dict) -> str:
     if not text:
         return "_no SQL in bundle_"
     match = SQL_VERB.search(text)
-    return match.group(1).upper() if match else "_unrecognised_"
+    if not match:
+        return "_unrecognised_"
+    # A make-table query begins with SELECT and writes: it creates or replaces its
+    # target. Read by its first word alone it was counted as a read.
+    if match.group(1).upper() == "SELECT" and sql_contract.make_table_target(text):
+        return MAKE_TABLE
+    return match.group(1).upper()
+
+
+MAKE_TABLE = "SELECT INTO"
+WRITE_VERBS = {"UPDATE", "INSERT", "DELETE", MAKE_TABLE}
 
 
 def read_bundle_text(path: Path) -> str:
@@ -433,6 +443,12 @@ def _table_reconciliation(tables: list[dict[str, Any]]) -> list[str]:
     return out + [""]
 
 
+def _column_list(columns: tuple[str, ...]) -> str:
+    """One backticked column for a single-column join; a bracketed list for a composite one."""
+    rendered = ", ".join(f"`{escape(column)}`" for column in columns)
+    return f"({rendered})" if len(columns) > 1 else rendered
+
+
 def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
                    sql: Any, naming: Any, writes: Any, meaning: Any) -> str:
     tables = rows_of(read_json(bundle / "databases" / "tables.json"))
@@ -501,7 +517,7 @@ def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
         "| `Source table` | Source name, sometimes qualified as `dbo.name`, `—`, or `_not extracted_` | The table name at the other end of a link. `—` means not applicable because the object is local; `_not extracted_` means the object is linked but the target table name was not captured. |",
         "| `Columns` | Non-negative integer | Number of column records extracted for this table object. It is a structural count, not a count of business fields confirmed by an owner. |",
         "| `Primary key` | One or more backticked column names, or `**none**` | Primary-key fields declared by the database. `**none**` means no primary key was declared for that object; it does not prove that users never treat another field as a key. |",
-        "| `Written by` | `N writer(s): INSERT/UPDATE/DELETE`, or `no writer attributable` | Writes attributable to extracted SQL/code. `no writer attributable` means no writer was identified in the scanned evidence, not that the table is never written. |",
+        "| `Written by` | `N writer(s): ` and the kinds of write, or `no writer attributable` | Writes attributable to extracted SQL/code: `INSERT`, `UPDATE`, `DELETE`, `SELECT INTO` (a make-table query, which creates or replaces the table), `RECORDSET` (VBA opening the table, or a `SELECT` on it alone, as a DAO/ADO recordset and calling `.AddNew`, `.Edit` or `.Delete`; attributed to the procedure) and `TRANSFER` (a `DoCmd.Transfer*` call naming the table). `no writer attributable` means no writer was identified in the scanned evidence, not that the table is never written: a recordset opened on a built string is not attributed. |",
         "| `Business role` | Recorded meaning, `_needs DOCUMENT_`, or another evidence marker | Business meaning or usage status. A recorded meaning must have an authoritative source. In Phase 1, `_needs DOCUMENT_` is an intentional open state for meanings to be updated from Phase 2 screen evidence, Phase 3 logic evidence, and Phase 4 workflow evidence; it is not a defect. |",
         "",
         "### Column Detail columns",
@@ -623,12 +639,18 @@ def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
         out += ["No `JOIN ... ON` clause resolved to a pair of tables.", ""]
     else:
         covered = sql.tables_in_a_join
+        composite = [r for r in sql.relationships if r.is_composite]
         out += [
-            f"{len(sql.relationships)} distinct column pairs, from "
+            f"{len(sql.relationships)} distinct joins, from "
             f"{sql.sources_scanned} SQL statements - every saved query and every screen "
             "record source. Confidence is the number of places that perform the join: a "
             "pair joined in one place may be a mistake, a pair joined in five is how "
             "the application works.",
+            "",
+            f"**{len(composite)} of them are composite**: the condition matches several "
+            "columns at once (`ON a.x = b.x AND a.y = b.y`), and the row lists them in "
+            "order on both sides. Neither column alone identifies the row, so a composite "
+            "join is one relationship on the column set, never one per column.",
             "",
             f"**Coverage: {len(covered)} of {len(tables)} table objects appear in a "
             "join at all.** The rest are joined only in VBA, whose SQL is built by "
@@ -641,10 +663,11 @@ def data_catalogue(app_id: str, bundle: Path, types: dict[int, dict[str, str]],
         for relationship in sql.relationships:
             out.append(
                 f"| `{escape(relationship.left_table)}` | "
-                f"`{escape(relationship.left_column)}` | "
+                f"{_column_list(relationship.left_columns)} | "
                 f"`{escape(relationship.right_table)}` | "
-                f"`{escape(relationship.right_column)}` | "
-                f"{relationship.occurrences} | INFERRED |"
+                f"{_column_list(relationship.right_columns)} | "
+                f"{relationship.occurrences} | "
+                f"{'INFERRED, composite' if relationship.is_composite else 'INFERRED'} |"
             )
         if sql.unresolved_aliases:
             out += [
@@ -1396,7 +1419,7 @@ def logic_catalogue(app_id: str, bundle: Path, derived: dict | None,
     referenced = reference_counts(derived)
     verbs = {(q.get("database_id", ""), q.get("name", "")): query_verb(bundle, q)
              for q in queries}
-    writes = {"UPDATE", "INSERT", "DELETE"}
+    writes = WRITE_VERBS
 
     out: list[str] = [
         f"# {app_id} — Logic Catalogue",
@@ -1407,7 +1430,9 @@ def logic_catalogue(app_id: str, bundle: Path, derived: dict | None,
         "",
         "`Statement` is read from the query's own SQL, not from its metadata: the "
         "bundle records `returns_records: true` even for an UPDATE, so the metadata "
-        "cannot separate a read from a write. A query nothing references is still "
+        "cannot separate a read from a write. `SELECT INTO` is a make-table query: it "
+        "begins with SELECT and writes, creating or replacing its target table, so it "
+        "is counted with the writers. A query nothing references is still "
         "reachable from the navigation pane, so zero references is not evidence of "
         "disuse (rule EC-05).",
         "",

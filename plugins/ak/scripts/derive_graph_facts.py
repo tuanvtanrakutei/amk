@@ -58,6 +58,48 @@ _QUOTED_PIECE = re.compile(r'"((?:[^"\\]|\\.)*)"')
 def record_sources(text: str) -> list[str]:
     """Every RecordSource value in a definition, continuation lines joined."""
     return ["".join(_QUOTED_PIECE.findall(value)) for value in RECORD_SOURCE_RE.findall(text)]
+
+
+# A reference is a whole object name. Matching a name as a substring counted `Q受注`
+# as referenced wherever `Q受注明細` was named, and on a VBA comment line counted code
+# that does not run. A name's edge is bounded by a character that cannot continue an
+# identifier - `\w` covers kana and kanji as well as Latin letters and digits - and the
+# longest names are matched first and blanked, so a shorter name inside a longer
+# bracketed one (`[受注 明細]`) is not found again.
+_WHOLE_NAME: dict[str, re.Pattern[str]] = {}
+
+
+def _whole_name(name: str) -> re.Pattern[str]:
+    pattern = _WHOLE_NAME.get(name)
+    if pattern is None:
+        before = r"(?<!\w)" if re.match(r"\w", name[0]) else ""
+        after = r"(?!\w)" if re.match(r"\w", name[-1]) else ""
+        pattern = _WHOLE_NAME[name] = re.compile(before + re.escape(name) + after)
+    return pattern
+
+
+def names_in_line(line: str, ordered_names: list[str]) -> set[str]:
+    """The names, of `ordered_names` (longest first), that `line` states whole."""
+    present: set[str] = set()
+    masked = line
+    for name in ordered_names:
+        if not name or name not in masked:
+            continue
+        spans = [m.span() for m in _whole_name(name).finditer(masked)]
+        if not spans:
+            continue
+        present.add(name)
+        for start, end in spans:
+            masked = masked[:start] + "\x00" * (end - start) + masked[end:]
+    return present
+
+
+def is_vba_comment(line: str) -> bool:
+    """A line that is wholly a VBA comment, `' ...` or `Rem ...`, and so runs nothing."""
+    stripped = line.lstrip()
+    return stripped.startswith("'") or bool(re.match(r"Rem(?:\s|$)", stripped, re.IGNORECASE))
+
+
 CONTROL_SOURCE_RE = re.compile(r'(?<![A-Za-z])ControlSource\s*=\s*"([^"]*)"')
 # Not preceded by a letter: SaveAsText writes OLEClass ="<display name>" beside the
 # real Class ="<ProgID>", and matching both reports a caption as a control.
@@ -335,6 +377,9 @@ def main() -> int:
         })
 
     ordered_objects = sorted({label for _, _, label in object_node}, key=len, reverse=True)
+    # One list of every name, so a table name inside a longer query name, or a query
+    # name inside a longer table name, is blanked by the longer one first.
+    ordered_names = sorted(set(ordered_tables) | set(ordered_objects), key=len, reverse=True)
 
     def add_edge(source: str, target: str, relation: str, source_file: str, line: int) -> None:
         edges.append({
@@ -349,12 +394,19 @@ def main() -> int:
         seen_tables: set[str] = set()
         seen_objects: set[str] = set()
         for line_no, line in enumerate(text.split("\n"), 1):
+            # SQL has no `'` comment, and a quote opens a literal there; everything
+            # else carries VBA, where a comment line names objects without using them.
+            if kind != "query" and is_vba_comment(line):
+                continue
+            present = names_in_line(line, ordered_names)
+            if not present:
+                continue
             for table in ordered_tables:
-                if table in line and table not in seen_tables:
+                if table in present and table not in seen_tables:
                     seen_tables.add(table)
                     add_edge(holder, table_node[table], "references", relative, line_no)
             for other in ordered_objects:
-                if other == label or other in seen_objects or other not in line:
+                if other == label or other in seen_objects or other not in present:
                     continue
                 # A name shared by a form and a report is genuinely ambiguous in text:
                 # the line says the name and both objects bear it. Both edges are

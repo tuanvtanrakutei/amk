@@ -195,3 +195,141 @@ def test_a_recordset_opened_by_name_counts_only_when_something_writes() -> None:
 def test_built_string_opens_are_counted_so_the_gap_is_visible() -> None:
     profile = sql.write_profile({"form F": "Set rs = db.OpenRecordset(sql)"}, TABLES)
     assert profile.built_string_opens == 1
+
+
+# --- A105: composite joins --------------------------------------------------
+
+
+def test_a_composite_join_is_one_relationship_on_both_columns() -> None:
+    """`ON a.x = b.x AND a.y = b.y` used to be read as a join on `x` alone."""
+    result = analyse(one="SELECT * FROM 受注データ AS t INNER JOIN 店舗マスタ AS s "
+                         "ON t.店舗コード = s.店舗コード AND t.商品コード = s.商品コード;")
+    assert len(result.relationships) == 1
+    relationship = result.relationships[0]
+    assert relationship.is_composite
+    assert set(relationship.left_columns) == {"店舗コード", "商品コード"}
+    assert relationship.left_columns == relationship.right_columns
+    assert result.candidate_keys["店舗マスタ"] == [(relationship.right_column, 1)]
+
+
+def test_a_composite_join_is_the_same_whichever_column_comes_first() -> None:
+    result = analyse(
+        a="SELECT * FROM 受注データ JOIN 店舗マスタ ON 受注データ.店舗コード = 店舗マスタ.店舗コード "
+          "AND 受注データ.商品コード = 店舗マスタ.商品コード;",
+        b="SELECT * FROM 店舗マスタ JOIN 受注データ ON (店舗マスタ.商品コード = 受注データ.商品コード) "
+          "AND (店舗マスタ.店舗コード = 受注データ.店舗コード);",
+    )
+    assert len(result.relationships) == 1
+    assert result.relationships[0].occurrences == 2
+
+
+def test_a_literal_term_does_not_make_a_join_composite() -> None:
+    result = analyse(one="SELECT * FROM 受注データ JOIN 店舗マスタ "
+                         "ON 受注データ.店舗コード = 店舗マスタ.店舗コード AND 店舗マスタ.区分 = 1 "
+                         "WHERE 受注データ.数量 = 店舗マスタ.数量;")
+    assert len(result.relationships) == 1
+    assert not result.relationships[0].is_composite
+    assert result.relationships[0].left_column == "店舗コード"
+
+
+def test_nested_joins_keep_each_condition_to_its_own_pair() -> None:
+    result = analyse(one="SELECT * FROM (受注データ INNER JOIN 店舗マスタ "
+                         "ON 受注データ.店舗コード = 店舗マスタ.店舗コード) INNER JOIN 商品マスタ "
+                         "ON 受注データ.商品コード = 商品マスタ.商品コード;")
+    assert len(result.relationships) == 2
+    assert not any(r.is_composite for r in result.relationships)
+
+
+# --- A105: make-table queries -----------------------------------------------
+
+
+def test_a_make_table_target_is_read_from_a_whole_statement() -> None:
+    assert sql.make_table_target("SELECT a, b INTO [WK集計] FROM 受注データ;") == "WK集計"
+    assert sql.make_table_target(
+        "PARAMETERS p Long;\nSELECT a INTO WK集計 FROM 受注データ;") == "WK集計"
+    assert sql.make_table_target("SELECT [INTO], 'INTO x' FROM 受注データ;") is None
+    assert sql.make_table_target("INSERT INTO WK集計 SELECT * FROM 受注データ;") is None
+    assert sql.make_table_target("SELECT * FROM 受注データ;") is None
+
+
+def test_a_make_table_query_is_a_writer_of_its_target() -> None:
+    """A long column list put `INTO` past the scan's reach, and the verb read SELECT."""
+    columns = ", ".join(f"受注データ.項目{n:02d}" for n in range(30))
+    profile = sql.write_profile(
+        {"query 集計作成": f"SELECT {columns}, '済' AS 状態 INTO WK集計 FROM 受注データ;"},
+        TABLES)
+    assert profile.of("WK集計") == ["query 集計作成 (SELECT INTO)"]
+    assert profile.summary("WK集計") == "1 writer(s): SELECT INTO"
+
+
+def test_a_short_make_table_statement_in_vba_is_named_select_into() -> None:
+    profile = sql.write_profile(
+        {"module M": 'CurrentDb.Execute "SELECT * INTO WK集計 FROM 受注データ"'}, TABLES)
+    assert profile.of("WK集計") == ["module M (SELECT INTO)"]
+
+
+# --- A105: recordset writers ------------------------------------------------
+
+
+def test_a_recordset_write_is_attributed_to_its_procedure() -> None:
+    code = ('Private Sub 読込()\n'
+            '    Set rs = CurrentDb.OpenRecordset("商品マスタ")\n'
+            '    x = rs!名称\n'
+            'End Sub\n'
+            'Private Sub 追加()\n'
+            '    Set rs2 = CurrentDb.OpenRecordset("[WK集計]", dbOpenDynaset)\n'
+            '    rs2.AddNew\n'
+            '    rs2.Update\n'
+            'End Sub\n')
+    profile = sql.write_profile({"module M": code}, TABLES)
+    assert profile.of("WK集計") == ["module M.追加 (RECORDSET)"]
+    assert profile.of("商品マスタ") == [], "a recordset only read is not a writer"
+
+
+def test_a_recordset_on_a_select_of_one_table_is_a_writer() -> None:
+    code = ('Sub 更新()\n'
+            '    Set rs = db.OpenRecordset("SELECT * FROM 受注データ WHERE 番号 = " & n)\n'
+            '    rs.Edit\n'
+            '    rs!数量 = 0\n'
+            '    rs.Update\n'
+            'End Sub\n')
+    profile = sql.write_profile({"form F": code}, TABLES)
+    assert profile.of("受注データ") == ["form F.更新 (RECORDSET)"]
+
+
+def test_a_recordset_on_a_join_is_not_attributed() -> None:
+    code = ('Sub 更新()\n'
+            '    Set rs = db.OpenRecordset("SELECT * FROM 受注データ INNER JOIN 店舗マスタ '
+            'ON 受注データ.店舗コード = 店舗マスタ.店舗コード")\n'
+            '    rs.Edit\n'
+            'End Sub\n')
+    profile = sql.write_profile({"form F": code}, TABLES)
+    assert profile.of("受注データ") == [] and profile.of("店舗マスタ") == []
+
+
+def test_an_ado_recordset_and_a_with_block_are_read() -> None:
+    code = ('Function 登録() As Boolean\n'
+            '    rs.Open "WK集計", cn, adOpenKeyset, adLockOptimistic\n'
+            '    rs.AddNew\n'
+            'End Function\n'
+            'Sub 補正()\n'
+            '    strSQL = "SELECT * FROM 店舗マスタ"\n'
+            '    Set rs = CurrentDb.OpenRecordset(strSQL)\n'
+            '    With rs\n'
+            '        .Edit\n'
+            '        .Update\n'
+            '    End With\n'
+            'End Sub\n')
+    profile = sql.write_profile({"module M": code}, TABLES)
+    assert profile.of("WK集計") == ["module M.登録 (RECORDSET)"]
+    assert profile.of("店舗マスタ") == ["module M.補正 (RECORDSET)"]
+
+
+def test_a_commented_recordset_write_is_not_a_writer() -> None:
+    code = ('Sub 追加()\n'
+            '    Set rs = CurrentDb.OpenRecordset("WK集計")\n'
+            "    'rs.AddNew\n"
+            '    Rem rs.Edit\n'
+            'End Sub\n')
+    profile = sql.write_profile({"module M": code}, TABLES)
+    assert profile.of("WK集計") == []

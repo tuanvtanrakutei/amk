@@ -749,3 +749,70 @@ def test_the_screen_index_is_read_from_the_registers_directory(tmp_path: Path) -
     write(registers / "T01_Identifiers.json",
           {"entries": [{"id": "F-001", "namespace": "F-", "title": "メイン"}]})
     assert catalogues.screen_indices(tmp_path) == {"メイン": "F-001"}
+
+
+# --- A105: make-table writers, recordset writers, composite joins ------------
+
+
+def _add_make_table_query(workspace: Path) -> None:
+    """A fourth saved query that creates a work table, joined on two columns."""
+    bundle = workspace / ".ak" / "bundles" / "bundle-abc"
+    tables = json.loads((bundle / "databases" / "tables.json").read_text(encoding="utf-8"))
+    tables.append({"database_id": BE, "name": "WK出荷集計", "kind": "table", "metadata": {}})
+    write(bundle / "databases" / "tables.json", tables)
+    inventory = bundle / "code" / "access-sql" / "inventory.json"
+    queries = json.loads(inventory.read_text(encoding="utf-8"))
+    queries.append({"database_id": BE, "name": "出荷集計作成", "kind": "query",
+                    "path": "ddd.txt", "metadata": {"returns_records": True}})
+    write(inventory, queries)
+    io.open(bundle / "code" / "access-sql" / "ddd.txt", "w", encoding="utf-8").write(
+        "SELECT 受注データ.伝票番号, 受注データ.出荷日付, Sum(受注データ.出荷数量) AS 数量 "
+        "INTO WK出荷集計 FROM 受注データ INNER JOIN 商品情報 "
+        "ON 受注データ.伝票番号 = 商品情報.伝票番号 AND 受注データ.出荷日付 = 商品情報.出荷日付 "
+        "GROUP BY 受注データ.伝票番号, 受注データ.出荷日付;")
+
+
+def test_a_make_table_query_is_counted_as_a_write(workspace: Path) -> None:
+    """`SELECT ... INTO` begins with SELECT and creates its target. It writes."""
+    _add_make_table_query(workspace)
+    built = build(workspace)
+    logic = built["T01_LogicCatalogue.md"]
+    assert "**SELECT INTO**" in logic
+    assert "3 of 4 queries write" in logic
+    data = built["T01_DataCatalogue.md"]
+    row = next(line for line in data.splitlines() if line.startswith("| ")
+               and "| `WK出荷集計` |" in line)
+    assert "1 writer(s): SELECT INTO" in row
+
+
+def test_a_composite_join_is_one_row_on_both_columns(workspace: Path) -> None:
+    _add_make_table_query(workspace)
+    data = build(workspace)["T01_DataCatalogue.md"]
+    rows = [line for line in data.splitlines()
+            if line.startswith("| `受注データ` |") or line.startswith("| `商品情報` |")]
+    joins = [line for line in rows if "INFERRED" in line]
+    assert len(joins) == 1, joins
+    assert "INFERRED, composite" in joins[0]
+    assert "(`伝票番号`, `出荷日付`)" in joins[0]
+
+
+def test_a_recordset_writer_reaches_the_written_by_column(workspace: Path) -> None:
+    """A table filled only through a recordset showed its DELETE and nothing else."""
+    _add_make_table_query(workspace)
+    session = workspace / ".ak" / "staging" / BE / "fresh-01" / "vba"
+    session.mkdir(parents=True)
+    io.open(session / "集計処理.txt", "w", encoding="utf-8", newline="\n").write(
+        'Public Sub 集計クリア()\n'
+        '    CurrentDb.Execute "DELETE * FROM WK出荷集計"\n'
+        'End Sub\n'
+        'Public Sub 集計追加()\n'
+        '    Dim rs As DAO.Recordset\n'
+        '    Set rs = CurrentDb.OpenRecordset("SELECT * FROM WK出荷集計 WHERE 1=0")\n'
+        '    rs.AddNew\n'
+        '    rs!数量 = 1\n'
+        '    rs.Update\n'
+        'End Sub\n')
+    data = build(workspace)["T01_DataCatalogue.md"]
+    row = next(line for line in data.splitlines() if line.startswith("| ")
+               and "| `WK出荷集計` |" in line)
+    assert "3 writer(s): DELETE, RECORDSET, SELECT INTO" in row

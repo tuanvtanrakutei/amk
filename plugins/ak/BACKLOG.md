@@ -12,6 +12,63 @@ that it should now work.
 
 ## Open
 
+### A105 - the catalogues undercounted writers and joins, and overcounted references
+
+**Found 2026-10-22, in an independent review of one application's generated catalogues.**
+Four defects, all in what the catalogue generator reads out of SQL and VBA, and all silent:
+each produced a plausible number that was wrong.
+
+- **A make-table query was a read.** `query_verb` classified a statement by its first word,
+  so `SELECT ... INTO <table>` was `SELECT`. The Logic Catalogue reported fewer than half of
+  the writing queries as writes. In the data catalogue the writer scan did see short ones,
+  but labelled them `SELECT`, and missed any whose column list ran past its 200-character
+  window or held a quoted literal before `INTO`.
+- **A recordset writer was missed.** A table filled only through `OpenRecordset` or ADO
+  `rs.Open`, then `.AddNew`/`.Edit` ... `.Update`, showed its `DELETE` writer and nothing
+  else. The scan counted a recordset only when the literal argument *was* a table name,
+  never a `SELECT` on one, never ADO, and then credited the whole object if any line of it,
+  comments included, said `.AddNew` - so it was both too narrow and too loose.
+- **A composite join was read as a join on its first column.** `ON a.x = b.x AND a.y = b.y`
+  matched one equality after `ON` and dropped the rest, so section 2.1 listed `x` alone and
+  offered it as the candidate key.
+- **`Referenced by` counted substrings and comments.** The deriver matched names with
+  `name in line`, so `Q受注` was referenced wherever `Q受注明細` was, and a name on a `'` or
+  `Rem` line counted as a use.
+
+Changed:
+
+- `sql_relationships.make_table_target` reads the target of a whole `SELECT ... INTO`
+  statement, with bracketed names and literals blanked. `query_verb` returns `SELECT INTO`
+  for one, it is counted with the writers, and `write_profile` lists it among the target's
+  writers as `SELECT INTO`.
+- `sql_relationships.recordset_writes` reads VBA per procedure, with continuations joined
+  and comment lines dropped. It binds a recordset variable to the table it is opened on -
+  a literal table name, a literal `SELECT` on one table, or a variable holding one - through
+  DAO `Set rs = ….OpenRecordset(…)`, `With ….OpenRecordset(…)` and ADO `rs.Open`, and
+  attributes `rs.AddNew`/`.Edit`/`.Delete`, or `.AddNew` inside `With rs`, to that table as
+  `<object>.<procedure> (RECORDSET)`. A `SELECT` with a join or a comma list after `FROM`
+  is not attributed.
+- `analyse` reads each `ON` condition whole, groups its `t.c = t.c` terms by table pair,
+  and records a composite join as one `Relationship` on a column tuple. The catalogue prints
+  it as `(x, y)` with status `INFERRED, composite`, and the candidate key is the column set.
+- The deriver matches whole names only (an edge that is a letter, kana, kanji or digit must
+  not continue into another), blanks the longest names first, and skips VBA comment lines in
+  every object that is not a query.
+- The `Written by` legend names every kind of write it can show.
+
+Not yet done:
+
+- A recordset opened on a string built by concatenation, or on a variable assigned more
+  than one way, is still unattributed; `built_string_opens` counts them. Dataflow across
+  procedures (a recordset passed as an argument) is not followed.
+- A trailing comment after code (`x = 1 ' Q受注`) still counts as a reference; only whole
+  comment lines are skipped. Stripping a trailing comment needs a quote-aware scan that a
+  SaveAsText continuation line can mislead.
+- `WRITE_STATEMENT` still reads VBA comment lines, so a commented-out `DELETE FROM` is
+  still a writer.
+- No real application has been re-run since the change; the counts the review quoted are
+  not yet confirmed against a regenerated catalogue.
+
 ### A104 - common business words were missing from the term dictionary
 
 **Found 2026-10-22, reading a second application's data catalogue.** A third of its names came
