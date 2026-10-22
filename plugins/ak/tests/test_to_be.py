@@ -66,6 +66,72 @@ def test_a_recorded_out_of_scope_object_is_read_from_the_decision_table() -> Non
     assert to_be.out_of_scope_objects([record]) == {"Errors"}
 
 
+def test_a_disposition_is_read_from_the_start_of_its_cell() -> None:
+    """`out of scope; the table stays` is out of scope; a field can be named `<screen>.<field>`."""
+    record = ("| Object | Kind | In the replacement |\n|---|---|---|\n"
+              "| Sheet (F-016) | form | out of scope; the table itself stays |\n"
+              "| Stores (F-010) | form | deferred: may come back |\n"
+              "| NewStore | form | Future Scope |\n"
+              "| Totals.ArrivalDate | field | read-only: shown, not edited |\n"
+              "| Orders | form | in scope |\n")
+    assert to_be.scope_dispositions([record]) == {
+        "Sheet": "out of scope", "Stores": "deferred", "NewStore": "deferred",
+        "Totals.ArrivalDate": "read-only"}
+    assert to_be.out_of_scope_objects([record]) == {"Sheet"}
+    assert to_be.deferred_objects([record]) == {"Stores", "NewStore"}
+
+
+def test_a_deferred_screen_is_not_proposed_and_a_button_to_it_is_dropped() -> None:
+    screen = {"name": "List", "caption": "List", "mode": {"view": "continuous"},
+              "controls": [_c("txtCode", "display", source="CODE")]}
+    proposal = to_be.propose(screen, "", {}, dispositions={"List": "deferred"})
+    assert proposal["pattern"] == "deferred" and proposal["regions"] == []
+    assert {m["status"] for m in proposal["mapping"]} == {"deferred"}
+
+    menu = {"name": "Menu", "caption": "Menu", "mode": {"view": "single"}, "controls": [
+        _c("cmdList", "button", caption="List"), _c("cmdErrors", "button", top=30, caption="Errors")]}
+    proposal = to_be.propose(menu, MENU_TEXT, {}, dispositions={"List": "deferred"})
+    status = {m["legacy"]: m["status"] for m in proposal["mapping"]}
+    assert status == {"cmdList": "deferred", "cmdErrors": "kept"}
+
+
+def test_a_button_that_does_more_keeps_its_work_without_opening_a_deferred_screen() -> None:
+    """An import button that opens a new-record form at its end is still the import."""
+    text = ("Begin Form\nEnd\nCodeBehindForm\nPrivate Sub cmdImport_Click()\n"
+            "    DoCmd.TransferSpreadsheet acImport, 8, \"Orders\", \"x.xls\"\n"
+            "    DoCmd.OpenForm \"NewStore\"\nEnd Sub\n")
+    menu = {"name": "Menu", "caption": "Menu", "mode": {"view": "single"},
+            "controls": [_c("cmdImport", "button", caption="Import")]}
+    proposal = to_be.propose(menu, text, {}, dispositions={"NewStore": "deferred"})
+    row = next(m for m in proposal["mapping"] if m["legacy"] == "cmdImport")
+    assert row["status"] == "changed" and "no longer opens NewStore (deferred)" in row["reason"]
+    action = next(a for r in proposal["regions"] if r["kind"] == "actions" for a in r["actions"])
+    assert action["opens"] == [] and all("NewStore" not in d for d in action["does"])
+
+
+def test_one_control_recorded_out_of_scope_is_not_proposed() -> None:
+    menu = {"name": "Menu", "caption": "Menu", "mode": {"view": "single"},
+            "controls": [_c("cmdList", "button", caption="List"), _c("cmdErrors", "button", top=30, caption="Errors")]}
+    proposal = to_be.propose(menu, MENU_TEXT, {}, dispositions={"Menu.cmdList": "out of scope"})
+    status = {m["legacy"]: m["status"] for m in proposal["mapping"]}
+    assert status == {"cmdList": "out of scope", "cmdErrors": "kept"}
+    assert [a["from"] for r in proposal["regions"] if r["kind"] == "actions" for a in r["actions"]] == ["cmdErrors"]
+
+
+def test_a_field_recorded_read_only_is_shown_and_not_edited() -> None:
+    screen = {"name": "Totals", "caption": "Totals", "mode": {"view": "continuous", "additions": True},
+              "controls": [_c("txtCode", "display", source="CODE"),
+                           _c("txtDate", "input", left=70, source="ArrivalDate")]}
+    proposal = to_be.propose(screen, "", {}, dispositions={"Totals.ArrivalDate": "read-only"})
+    assert proposal["pattern"] == "list"
+    table = next(r for r in proposal["regions"] if r["kind"] == "table")
+    assert [c["editable"] for c in table["columns"]] == [False, False]
+    assert table["allow_add"] is False
+    assert not any("read_only_by_decision" in c for c in table["columns"])
+    row = next(m for m in proposal["mapping"] if m["legacy"] == "txtDate")
+    assert row["status"] == "changed" and "recorded decision" in row["reason"]
+
+
 def test_a_menu_keeps_its_tabs_order_and_colours() -> None:
     """Familiar first: an operator finds each button where it was, in its colour."""
     tab = _c("tabMain", "tabs", top=40, pages=[{"name": "p1", "caption": "Food"}, {"name": "p2", "caption": "Veg"}])

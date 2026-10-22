@@ -12,6 +12,37 @@ that it should now work.
 
 ## Open
 
+### A106 - the to-be screens could not show a deferred screen or a field decided read-only
+
+**Found 2026-10-22, after an independent review of a project's phases.** All its decisions were
+recorded, but its to-be register and wireframes dated from before them: a screen moved to Future
+Scope was still proposed with its fields editable, a list whose date input the decider dropped was
+still an `editable list`, and one form stayed in scope because its record's cell read
+`out of scope; the table itself stays`. The scope reader matched a cell equal to `out of scope`
+and nothing else, so a recorded deferral and a field-level decision had no shape it could read.
+
+Changed:
+
+- `to_be.scope_dispositions` reads a decision table cell that *starts* with `out of scope`,
+  `deferred` / `future scope`, or `read-only`. The object is a screen, or `<screen>.<control>`
+  for one control. `out_of_scope_objects` keeps its meaning and reads through it.
+- `propose` takes the dispositions:
+  - a deferred screen gets the pattern `deferred` and no regions;
+  - a button that only opens a screen not built is dropped, with that reason;
+  - a button that does more than open it keeps its work, and the mapping says it no longer opens
+    that screen. Before, an import button that opened a new-store form at its end was dropped
+    as a whole when that form was out of scope;
+  - a control recorded `out of scope` or `deferred` is not proposed;
+  - a field recorded `read-only` is shown and not edited, and the mapping marks it `changed`.
+- `$ak wireframes` passes the dispositions, counts deferred screens, and the page says
+  "Deferred by a recorded decision".
+- The modernize registry seeder (`workspace_inventory`) puts a deferred object in Future Scope
+  with the reason `deferred by a recorded decision`.
+
+Not yet done: a decision that changes behaviour rather than scope (a different source table,
+a server-side folder instead of an upload) is still not read; the to-be shows the legacy
+behaviour there, and the decision lives only in the phase text.
+
 ### A105 - the catalogues undercounted writers and joins, and overcounted references
 
 **Found 2026-10-22, in an independent review of one application's generated catalogues.**

@@ -20,8 +20,9 @@ Everything here is already in the workspace, written by the kit:
                  form is part of its parent's screen, not a screen of its own.
   entry points   the Phase 2 `Entry points` table; without one, a form nothing references
                  that references other forms.
-  scope          `input/target-intent/*.md` rows marking an object `out of scope`, read the
-                 way the wireframe builder reads them.
+  scope          `input/target-intent/*.md` rows marking an object `out of scope` or
+                 `deferred`, read the way the wireframe builder reads them. A deferred
+                 object goes to Future Scope.
 
 A form reached from an entry point is a screen to build. A form nothing reaches goes to
 Future Scope: the legacy application cannot open it, so whether it is wanted is a question,
@@ -154,17 +155,17 @@ def entry_points(phase2: Path) -> list[str]:
     return []
 
 
-def out_of_scope(root: Path) -> set[str]:
+def out_of_scope(root: Path) -> tuple[set[str], set[str]]:
     contracts = Path(__file__).resolve().parents[2] / "contracts"
     sys.path.insert(0, str(contracts))
     try:
-        from to_be import out_of_scope_objects
+        from to_be import deferred_objects, out_of_scope_objects
     finally:
         sys.path.remove(str(contracts))
     folder = root / "input" / "target-intent"
     texts = [p.read_text(encoding="utf-8") for p in sorted(folder.glob("*.md"))
              if p.name.lower() != "readme.md"] if folder.is_dir() else []
-    return out_of_scope_objects(texts)
+    return out_of_scope_objects(texts), deferred_objects(texts)
 
 
 def inventory(path: str) -> dict:
@@ -180,7 +181,7 @@ def inventory(path: str) -> dict:
         raise FileNotFoundError(f"no F- identifiers in output/registers/{app}_Identifiers.json")
     opens, prints, forms, reports, by_module = references(root)
     embedded = embedded_forms(root, app)
-    excluded_names = out_of_scope(root)
+    excluded_names, deferred_names = out_of_scope(root)
 
     id_of: dict[tuple[str, str], str] = {}
     for ident, name, kind in ids:
@@ -210,6 +211,8 @@ def inventory(path: str) -> dict:
         record = {"id": ident, "object": name, "type": kind}
         if name in excluded_names or ident in excluded_names:
             excluded.append({**record, "reason": "out of scope by a recorded decision"})
+        elif name in deferred_names or ident in deferred_names:
+            future.append({**record, "reason": "deferred by a recorded decision"})
         elif kind == "form" and name in embedded:
             continue
         elif kind == "report":

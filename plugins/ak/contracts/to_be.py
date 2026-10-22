@@ -249,15 +249,21 @@ def pagination(screen: dict[str, Any]) -> dict[str, Any]:
 
 
 def propose(screen: dict[str, Any], text: str, ids: dict[str, str],
-            out_of_scope: Iterable[str] = ()) -> dict[str, Any]:
+            out_of_scope: Iterable[str] = (),
+            dispositions: dict[str, str] | None = None) -> dict[str, Any]:
     """The to-be for one legacy screen model, with its mapping.
 
     Familiar first: the operator should find every word, button and value where it was,
     in the same order, tabs as tabs, in the same colours, so moving to the new system needs
     little training. A thing changes only for a recorded decision (scope) or a technical
     gap a browser application cannot keep (a path on the operator's PC, an unpaged list),
-    and the mapping says which."""
-    excluded = set(out_of_scope)
+    and the mapping says which. `dispositions` is `scope_dispositions` of the records: a
+    deferred screen is not proposed, and a field recorded `read-only` is shown, not edited."""
+    dispositions = dispositions or {}
+    excluded = set(out_of_scope) | {n for n, d in dispositions.items() if d == "out of scope"}
+    deferred = {n for n, d in dispositions.items() if d == "deferred"}
+    mine = {n.split(".", 1)[1]: d for n, d in dispositions.items() if n.startswith(screen["name"] + ".")}
+    read_only = {n for n, d in mine.items() if d == "read-only"}
     mode = screen.get("mode") or {}
     controls = screen.get("controls") or []
     actions = click_actions(text)
@@ -266,12 +272,14 @@ def propose(screen: dict[str, Any], text: str, ids: dict[str, str],
     labels = [c for c in controls if c.get("role") == "text" and c.get("visible", True)]
     mapping: list[dict[str, str]] = []
 
-    if screen["name"] in excluded:
+    for gone, words in ((excluded, "out of scope"), (deferred, "deferred")):
+        if screen["name"] not in gone:
+            continue
         for c in controls:
             mapping.append({"legacy": c["name"], "role": c.get("role", ""), "to_be": "—",
-                            "status": "out of scope", "reason": "the screen is out of scope by a recorded decision"})
+                            "status": words, "reason": f"the screen is {words} by a recorded decision"})
         return {"screen": screen["name"], "id": screen.get("id", ""), "title": screen.get("caption") or screen["name"],
-                "status": "proposal", "pattern": "out of scope", "regions": [], "mapping": mapping}
+                "status": "proposal", "pattern": words, "regions": [], "mapping": mapping}
 
     fields, buttons, embedded, tabs = [], [], [], {}
     tab_control: dict[str, Any] | None = None
@@ -280,6 +288,10 @@ def propose(screen: dict[str, Any], text: str, ids: dict[str, str],
     used_labels: set[str] = set()
     for c in controls:
         role = c.get("role", "")
+        if mine.get(c["name"]) in ("out of scope", "deferred"):
+            mapping.append({"legacy": c["name"], "role": role, "to_be": "—", "status": mine[c["name"]],
+                            "reason": f"the control is {mine[c['name']]} by a recorded decision"})
+            continue
         if not c.get("visible", True):
             mapping.append({"legacy": c["name"], "role": role, "to_be": "—", "status": "dropped",
                             "reason": "hidden: an operator never sees it"})
@@ -299,9 +311,11 @@ def propose(screen: dict[str, Any], text: str, ids: dict[str, str],
         if role in FIELD_ROLES:
             label = _label_for(c, labels, list_form, detail_controls)
             used_labels.add(label)
+            locked = bool(read_only & {c["name"], c.get("source") or ""})
             fields.append({
                 "field": c.get("source") or c["name"], "label": label, "component": _component(c, rows),
-                "editable": role in EDITABLE_ROLES, "computed": role == "computed",
+                "editable": role in EDITABLE_ROLES and not locked, "computed": role == "computed",
+                "read_only_by_decision": locked and role in EDITABLE_ROLES,
                 "format": (c.get("style") or {}).get("Format", ""), "from": c["name"],
                 "section": c["section"], "repeats": c.get("repeats", False), "place": _place(c),
                 **_look(c),
@@ -309,11 +323,22 @@ def propose(screen: dict[str, Any], text: str, ids: dict[str, str],
             continue
         if role in ("button", "button (disabled)", "link"):
             action = _action(c, actions, ids)
-            if any(target in excluded for target in action["opens"]):
-                mapping.append({"legacy": c["name"], "role": role, "to_be": "—", "status": "out of scope",
-                                "reason": "opens " + ", ".join(t for t in action["opens"] if t in excluded)
-                                + ", out of scope by a recorded decision"})
+            gone = {t: w for g, w in ((excluded, "out of scope"), (deferred, "deferred"))
+                    for t in action["opens"] if t in g}
+            only_opens = all(d.startswith("open ") for d in action["does"])
+            if gone and only_opens and set(action["opens"]) <= set(gone):
+                words = sorted(set(gone.values()))
+                mapping.append({"legacy": c["name"], "role": role, "to_be": "—", "status": words[0],
+                                "reason": "opens " + ", ".join(gone)
+                                + f", {' or '.join(words)} by a recorded decision"})
                 continue
+            if gone:
+                # A button that does more than open the screen keeps its other work; only the
+                # step that opens a screen not built goes.
+                action["does"] = [d for d in action["does"]
+                                  if not any(d.startswith("open ") and f" {t}" in d for t in gone)]
+                action["opens"] = [t for t in action["opens"] if t not in gone]
+                action["no_longer_opens"] = [f"{t} ({w})" for t, w in gone.items()]
             action["page"] = c.get("page", "")
             action["place"] = _place(c)
             action.update(_look(c))
@@ -460,6 +485,12 @@ def propose(screen: dict[str, Any], text: str, ids: dict[str, str],
                  else "summary field" if pattern == "menu"
                  else "summary field" if f in header_fields and pattern != "form" else "form field")
         changed = f["label"] == f["field"] and f["label"] != f["from"]
+        if f.pop("read_only_by_decision", False):
+            mapping.append({
+                "legacy": f["from"], "role": "editable field",
+                "to_be": f"{where} 「{f['label']}」 field {f['field']} ({f['component']})",
+                "status": "changed", "reason": "read-only by a recorded decision: shown, not edited"})
+            continue
         mapping.append({
             "legacy": f["from"], "role": "editable field" if f["editable"] else "read-only value",
             "to_be": f"{where} 「{f['label']}」 field {f['field']} ({f['component']}{', editable' if f['editable'] else ''})",
@@ -470,6 +501,13 @@ def propose(screen: dict[str, Any], text: str, ids: dict[str, str],
                       + (", same colour" if f.get("color") or f.get("background") else ""),
         })
     for b in buttons:
+        dropped = b.pop("no_longer_opens", None)
+        if dropped and not b["disabled"]:
+            mapping.append({"legacy": b["from"], "role": "button", "to_be": f"action 「{b['label']}」",
+                            "status": "changed",
+                            "reason": "; ".join(b["does"]) + "; no longer opens " + ", ".join(dropped)
+                                      + " by a recorded decision"})
+            continue
         mapping.append({"legacy": b["from"], "role": "button", "to_be": f"action 「{b['label']}」",
                         "status": "needs a decision" if b["disabled"] else "kept",
                         "reason": "disabled in the legacy screen; keep, enable or drop" if b["disabled"]
@@ -500,19 +538,43 @@ def propose(screen: dict[str, Any], text: str, ids: dict[str, str],
             "pattern": pattern, "regions": regions, "mapping": mapping}
 
 
-def out_of_scope_objects(records: Iterable[str]) -> set[str]:
-    """Object names a TARGET_INTENT record marks out of scope.
+DISPOSITIONS = (("out of scope", "out of scope"), ("deferred", "deferred"),
+                ("future scope", "deferred"), ("read-only", "read-only"), ("read only", "read-only"))
+
+
+def scope_dispositions(records: Iterable[str]) -> dict[str, str]:
+    """What TARGET_INTENT records say of each object: `out of scope`, `deferred` or `read-only`.
 
     Read from the markdown table rows the decision records carry: the first cell is the
-    object, optionally followed by its identifier in parentheses, and some cell reads
-    `out of scope`. A record in any other shape is not read here, and says nothing.
+    object, optionally followed by its identifier in parentheses, and some later cell starts
+    with the disposition (`out of scope; the table stays` reads as out of scope). The object
+    is a screen, or `<screen>.<control>` for one control: a field `read-only` is shown, not
+    edited; a control `out of scope` or `deferred` is not proposed. A record in any other
+    shape is not read here, and says nothing.
     """
-    names: set[str] = set()
+    found: dict[str, str] = {}
     for text in records:
         for line in text.splitlines():
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if len(cells) >= 2 and any(c.lower() == "out of scope" for c in cells[1:]):
-                name = re.sub(r"\s*\((?:F-\d+)\)\s*$", "", cells[0]).strip("` ")
-                if name and not name.startswith("-"):
-                    names.add(name)
-    return names
+            if len(cells) < 2:
+                continue
+            name = re.sub(r"\s*\((?:F-\d+)\)\s*$", "", cells[0]).strip("` ")
+            if not name or name.startswith("-"):
+                continue
+            for cell in cells[1:]:
+                low = cell.lower()
+                hit = next((d for word, d in DISPOSITIONS if low.startswith(word)), None)
+                if hit:
+                    found[name] = hit
+                    break
+    return found
+
+
+def out_of_scope_objects(records: Iterable[str]) -> set[str]:
+    """Object names a TARGET_INTENT record marks out of scope (see `scope_dispositions`)."""
+    return {n for n, d in scope_dispositions(records).items() if d == "out of scope"}
+
+
+def deferred_objects(records: Iterable[str]) -> set[str]:
+    """Object names a TARGET_INTENT record defers: not in this replacement, may come back."""
+    return {n for n, d in scope_dispositions(records).items() if d == "deferred"}
