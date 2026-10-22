@@ -359,6 +359,10 @@ def test_common_business_words_compose_completely() -> None:
         "管理マスタ": "management_master",
         "食材データ": "ingredient_data",
         "サラダバー青果データ": "salad_bar_produce_data",
+        "店舗マスタ保守": "store_master_maintenance",
+        "青果当日分受注照会": "produce_same_day_portion_order_inquiry",
+        "青果受発注品合計表": "produce_order_purchase_order_goods_total_report",
+        "初期処理": "initial_processing",
     }.items():
         rendered = bl.compose(japanese, terms, {})
         assert (rendered.english, rendered.is_complete) == (english, True), japanese

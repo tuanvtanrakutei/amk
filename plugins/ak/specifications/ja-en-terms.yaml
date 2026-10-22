@@ -301,6 +301,24 @@ terms:
   サラダ: {en: salad, provenance: analysis}
   サラダバー: {en: salad_bar, provenance: analysis}
   食材: {en: ingredient, provenance: analysis}
+  # Screen, query and control words. `一覧` is not `list`, which `リスト` already has.
+  照会: {en: inquiry, provenance: analysis}
+  一覧: {en: listing, provenance: analysis}
+  保守: {en: maintenance, provenance: analysis}
+  抽出: {en: extract, provenance: analysis}
+  受発注: {en: order_purchase_order, provenance: analysis}
+  分: {en: portion, provenance: analysis}
+  サブ: {en: sub, provenance: analysis}
+  詳細: {en: detail, provenance: analysis}
+  共通: {en: common, provenance: analysis}
+  初期: {en: initial, provenance: analysis}
+  処理: {en: processing, provenance: analysis}
+  パス: {en: path, provenance: analysis}
+  テキスト: {en: text, provenance: analysis}
+  ラベル: {en: label, provenance: analysis}
+  # `ライン` is already `line`.
+  直線: {en: straight_line, provenance: analysis}
+  埋め込み: {en: embedded, provenance: analysis}
 
 # Terms deliberately absent, so a gap is a decision rather than an oversight.
 not_translated:

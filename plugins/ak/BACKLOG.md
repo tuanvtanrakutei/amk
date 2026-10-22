@@ -25,7 +25,10 @@ Changed:
 - `ja-en-terms.yaml` gains `納品`, `納期`, `希望`, `予定`, `種別`, `管理`, `用紙`, `サイズ` and
   `レポート`, each with an English name no other term already uses, apart from `レポート`, which
   shares `report` with `表`. It also gains `最小` (`min`, beside `最大`), and the goods families
-  `サラダ`, `サラダバー` and `食材`.
+  `サラダ`, `サラダバー` and `食材`, and the screen, query and control words the same
+  application's screen and logic catalogues were missing (`照会`, `一覧`, `保守`, `抽出`,
+  `受発注`, `分`, `サブ`, `詳細`, `共通`, `初期`, `処理`, `パス`, `テキスト`, `ラベル`, `直線`,
+  `埋め込み`).
 - A term whose edge is a Latin letter or digit matches only a whole Latin word at that edge.
   `Ｐ` is a term, NFKC makes it `P`, and a column called `PaperSize` rendered as `p`, 11%
   covered. It is now `papersize`, complete. `DPコード` and `C品` still match, because their other
