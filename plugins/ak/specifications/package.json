@@ -1,6 +1,6 @@
 {
   "name": "access-modernization-kit",
-  "version": "2.21.1",
+  "version": "2.21.2",
   "contract_version": "2.2",
   "features": [
     "six_phase_legacy_analysis",
