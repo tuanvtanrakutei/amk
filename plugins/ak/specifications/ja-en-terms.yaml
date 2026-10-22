@@ -282,6 +282,22 @@ terms:
   エラー: {en: error, provenance: analysis}
   数: {en: count, provenance: analysis}
 
+  # --- terms a second application's coverage showed were missing ----------------
+  # Common business words, not one application's. Without `納品` the composer took `品`
+  # alone and rendered `納品希望日` as `goods_date`, which reads finished and is wrong.
+  # `配送` is already `delivery`, so `納品` - goods handed over at the receiving end -
+  # gets its own name; two terms sharing one English name would not map back.
+  納品: {en: goods_delivery, provenance: analysis}
+  納期: {en: due_date, provenance: analysis}
+  希望: {en: requested, provenance: analysis}
+  予定: {en: scheduled, provenance: analysis}
+  # `区分` is `type` and `分類` is `category`; a third classifier needs a third word.
+  種別: {en: kind, provenance: analysis}
+  管理: {en: management, provenance: analysis}
+  用紙: {en: paper, provenance: analysis}
+  サイズ: {en: size, provenance: analysis}
+  レポート: {en: report, provenance: analysis}
+
 # Terms deliberately absent, so a gap is a decision rather than an oversight.
 not_translated:
   - reason: >-

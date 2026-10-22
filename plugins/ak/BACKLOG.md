@@ -12,6 +12,23 @@ that it should now work.
 
 ## Open
 
+### A104 - common business words were missing from the term dictionary
+
+**Found 2026-10-22, reading a second application's data catalogue.** A third of its names came
+out `_partial_`, and some partial names were wrong rather than unfinished. `納品希望日` rendered
+as `goods_date` because only `品` and `日` matched, and `用紙サイズ` as `for`. A48 made a project's
+`terms:` section usable as vocabulary, but no project had added these words, and they are not
+one project's words.
+
+Changed:
+
+- `ja-en-terms.yaml` gains `納品`, `納期`, `希望`, `予定`, `種別`, `管理`, `用紙`, `サイズ` and
+  `レポート`, each with an English name no other term already uses, apart from `レポート`, which
+  shares `report` with `表`.
+
+Not yet known: a name that is already Latin, such as `PaperSize`, is still matched against
+single-letter terms and renders as `p`.
+
 ### A103 - the docs validator checked registry statuses against a vocabulary nothing documents
 
 **Found 2026-10-21, running `validate-docs` on a project whose registry had a screen at
