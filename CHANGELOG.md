@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.25.0] - 2026-10-23
+
+One pull request (#149). **The review queue tracks external dependencies and due dates**
+(A114).
+
+### Added
+
+- `docs/External_Dependencies.md`, a new modernize doc that bootstrap now creates.
+  - Each `EXT-nn` row gives the party, the ask, the source decision, the screens it blocks, its
+    state (`to-send`, `sent`, `in-progress`, `done`), the date it was sent, a due date and an
+    optional link.
+  - The review queue lists every row not done as kind `external`. A row is high risk when it
+    blocks an active screen and is still `to-send`, or when it is overdue.
+- Due dates in the review queue:
+  - `REVIEW_DUE_DAYS` in `PROJECT_CONFIG.md` sets a default deadline per kind. A default applies
+    only when the source has a start date.
+  - A source's own `Due`, or an erratum's `due` field, stands on its own.
+  - `--as-of` fixes the reference day. The JSON carries `start` and `due` only, so the output
+    stays deterministic.
+- `validate-docs` checks external dependencies: unique ids, states from the template's
+  vocabulary, and a `Sent on` date once a row is sent.
+
+### Fixed
+
+- `validate-docs` no longer reports a config key that a modernize script reads by name as a dead
+  key.
+
 ## [2.24.0] - 2026-10-23
 
 One pull request (#147). **A review queue: one page of what waits on a person** (A111).
