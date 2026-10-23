@@ -166,6 +166,7 @@ Fixed names — these are not configurable, because the pipeline documents refer
 | Legacy evidence taxonomy | `LEGACY_EVIDENCE.md` (plugin) |
 | Screen registry | `{{DOCS_DIR}}/Screens_Registry.md` |
 | Cross-screen issue log | `{{DOCS_DIR}}/Known_Issues.md` |
+| Asks of other teams or systems | `{{DOCS_DIR}}/External_Dependencies.md` |
 | Backend coding rules | `{{BACKEND_RULES_DOC}}` (plugin, unless the project keeps its own) |
 | Frontend coding rules | `{{FRONTEND_RULES_DOC}}` (plugin, unless the project keeps its own) |
 | Code style conventions | `{{CONVENTIONS_DOC}}` (plugin, unless the project keeps its own) |
@@ -183,6 +184,14 @@ The stack every stage builds against and every check runs in. `dev_stack.py` (bo
 | `FRONTEND_SERVICE` | `{{FRONTEND_SERVICE}}` | Compose service serving the frontend, or `n/a` |
 | `DEV_DB` | `{{DEV_DB}}` | `local-container`: `dev_stack.py` writes a gitignored `docker-compose.override.yml` beside the compose file with a PostgreSQL service and points the backend at it. `external`: the backend's `.env` names a database the developer's machine can reach |
 | `HEALTH_PATH` | `{{HEALTH_PATH}}` | Backend path that answers once it is up, e.g. `health/` |
+
+## 13. Review Queue
+
+Optional: the value below is a working default. `review_queue.py` reads it.
+
+| Key | Value | Notes |
+|---|---|---|
+| `REVIEW_DUE_DAYS` | `erratum=5, decision=3, plan approval=5, test sign-off=5, review=5, issue=5, external=10` | Days a person has, per review-queue kind, counted from the date the source records (an erratum's `created_at`, a dependency's `Sent on`, a pending answer's `Asked on`, an issue row's `Date`). A `Due` date in the source overrides it, and stands even without a start date. Without either, an item gets no due date. A kind left out takes the default shown here; `n/a` turns the defaults off, leaving only explicit `Due` dates |
 
 ## Validation Checklist
 

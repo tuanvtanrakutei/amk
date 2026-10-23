@@ -62,6 +62,7 @@ directory:
 | `Screens_Registry.md` | `{{DOCS_DIR}}/Screens_Registry.md` |
 | `Known_Issues.md` | `{{DOCS_DIR}}/Known_Issues.md` |
 | `Known_Issues_Archive.md` | `{{DOCS_DIR}}/Known_Issues_Archive.md` (starts empty by design) |
+| `External_Dependencies.md` | `{{DOCS_DIR}}/External_Dependencies.md` (starts empty: asks of other teams) |
 | `DOCS_README.md` | `{{DOCS_DIR}}/README.md` |
 | `Screen_plans_README.md` | `{{DOCS_DIR}}/Screen_plans/README.md` |
 | `Coding_Records_README.md` | `{{DOCS_DIR}}/Coding_Records/README.md` |

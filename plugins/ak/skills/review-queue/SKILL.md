@@ -1,6 +1,6 @@
 ---
 name: review-queue
-description: "Write the project's review queue - one page of everything that waits on a person: open decisions, unacknowledged errata, plan rows nobody decided, unsigned manual tests, screens waiting for acceptance, issue rows that need a decision. Writes docs/Review_Queue.md and docs/review_queue.json and nothing else. Trigger when the user or an owner asks what needs them, what is waiting on a person, what to decide today, or wants the queue refreshed. Examples: \"/ak:review-queue\", \"what is waiting on me\", \"what needs a decision today\", \"refresh the review queue\"."
+description: "Write the project's review queue - one page of everything that waits on a person: open decisions, unacknowledged errata, plan rows nobody decided, unsigned manual tests, screens waiting for acceptance, issue rows that need a decision, asks of other teams not yet delivered, with due dates. Writes docs/Review_Queue.md and docs/review_queue.json and nothing else. Trigger when the user or an owner asks what needs them, what is waiting on a person, what to decide today, or wants the queue refreshed. Examples: \"/ak:review-queue\", \"what is waiting on me\", \"what needs a decision today\", \"refresh the review queue\"."
 ---
 
 # Review Queue
@@ -23,11 +23,13 @@ parent folder when it holds `manifest.yaml` and `output/`). It writes:
 - `docs/Review_Queue.md`, `Audience: person`: a count line, then one table sorted by risk, kind
   and screen. When nothing waits, one line says so.
 - `docs/review_queue.json`, for agents and the pipeline: the same items with every field
-  (`id`, `kind`, `risk`, `screens`, `ask`, `evidence`, `how_to_record`, `source`, `status`).
+  (`id`, `kind`, `risk`, `screens`, `ask`, `evidence`, `how_to_record`, `source`, `status`,
+  `start`, `due`), and the `as_of` day.
 
-Neither file has a date, so the same state gives the same bytes. A file it did not write is
-refused (exit 1); pass `--force` only when the user says to replace it. `--dry-run` prints the
-count line and writes nothing. Exit 2 means it could not run.
+`--as-of YYYY-MM-DD` (default today) is the day overdue is counted against; the same state and
+the same `--as-of` give the same bytes. A file it did not write is refused (exit 1); pass
+`--force` only when the user says to replace it. `--dry-run` prints the count line and writes
+nothing. Exit 2 means it could not run.
 
 ## What it reads
 
@@ -41,6 +43,7 @@ count line and writes nothing. Exit 2 means it could not run.
 | review | `Final_Acceptance/{screen}.md` | User decision is `pending` |
 | issue | `Known_Issues.md` Active Log | `open` and `business` or `legacy-bug`, or `traceability` `open (HIGH)`, and not a pointer to a queue item |
 | issue | `Screens_Registry.md` | a track is `blocked` and nothing above names the screen |
+| external | `External_Dependencies.md` | a row's State is not `done`: an ask of another team or system |
 
 Items already with the customer and items settled by standing policy are counted in a note,
 not listed: the owner cannot act on them.
@@ -54,9 +57,21 @@ From the source's own severity or blocking flag:
 - erratum: its severity, medium when it has none;
 - plan approval and test sign-off: medium;
 - review: high unless the recommendation is approve or approve with follow-ups;
-- issue: high for `open (HIGH)` and for a blocked track, else the row's suffix, medium without one.
+- issue: high for `open (HIGH)` and for a blocked track, else the row's suffix, medium without one;
+- external: high when it blocks a screen in the registry and is still `to-send`, or when it is
+  overdue; medium otherwise.
 
-No source carries a due date, so every item is `waiting`.
+## Due dates
+
+An item has a `start` only when its source records a date: an erratum's `created_at`, a
+dependency's `Sent on`, a pending answer's `Asked on`, an issue row's `Date`. Its `due` is the
+source's own `Due` (a column, or an erratum's `due` field), else `start` plus the kind's days
+in `REVIEW_DUE_DAYS` (`docs/PROJECT_CONFIG.md`, e.g. `erratum=5, decision=3, external=10`; a
+kind left out takes the default, `n/a` turns the defaults off). A source's own `Due` stands on
+its own: a `to-send` row with a `Due` is overdue after it, with no start date. A default
+deadline needs a start; with neither, there is no due. The JSON
+carries only the two dates; the page's Status column says `overdue` or `due YYYY-MM-DD`,
+counted as of `--as-of`.
 
 ## Report
 

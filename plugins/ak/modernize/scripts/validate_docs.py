@@ -24,6 +24,10 @@ real project, not because it seemed plausible:
                           identity; a parse failure there silently mis-scopes work,
                           and a malformed or repeated rule_prefix mints rule ids
                           two screens share or nothing can read back
+  external-*              an External_Dependencies.md row with a state outside the
+                          template's vocabulary, an ID used twice, or a `sent` /
+                          `in-progress` row with no `Sent on` date, from which the
+                          review queue counts its due date (A114)
   missing-folder/readme   a per-screen artifact folder or its README is absent
   checklist-required-na   a key a stage's closing gate runs was `n/a`: the e2e command
                           was left `n/a` on a project that had the runner installed but
@@ -49,6 +53,10 @@ import sys
 
 ISSUE_STATUSES = {"open", "in_progress", "resolved", "deferred", "wont_fix"}
 REGISTRY_STATUSES = {"not_started", "implemented", "verified", "partial", "blocked"}
+TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
+DEPENDENCIES = "External_Dependencies.md"
+# States of a dependency that say it was sent, so `Sent on` must hold the date it was.
+SENT_STATES = {"sent", "in-progress"}
 ARTIFACT_FOLDERS = [
     "Screen_plans",
     "Coding_Records",
@@ -179,6 +187,14 @@ def check_config(
     if plugin_dir:
         scan(os.path.join(plugin_dir, "docs"), True)
         scan(os.path.join(plugin_dir, "templates"), False)
+        # A key a script reads by name (`REVIEW_DUE_DAYS` in review_queue.py) is consumed
+        # although no document substitutes it.
+        scripts = os.path.join(plugin_dir, "scripts")
+        if os.path.isdir(scripts):
+            for name in sorted(os.listdir(scripts)):
+                if name.endswith(".py"):
+                    consumed_any.update(k for k in re.findall(r"[\"']([A-Z][A-Z0-9_]*)[\"']",
+                                                              read(os.path.join(scripts, name))) if k in declared)
 
     for key in sorted(k for k in consumed_docs if k not in declared):
         f.add("HIGH", "missing-config-key", ", ".join(sorted(consumed_docs[key])),
@@ -320,6 +336,57 @@ def _exists_under(root: str, needle: str) -> bool:
             if os.path.join(dirpath, name).endswith(tail):
                 return True
     return False
+
+
+# --------------------------------------------------------- dependency checks
+
+
+def vocabulary(text: str, heading: str) -> set[str]:
+    """The backticked first-column values of the table under `## <heading>`.
+
+    A checker holding its own copy of a template's vocabulary drifts from it (A103), so the
+    vocabulary is read from the template that documents it.
+    """
+    block = text.split("## %s" % heading, 1)[1].split("\n#", 1)[0] if "## %s" % heading in text else ""
+    return set(re.findall(r"^\|\s*`([^`|]+)`\s*\|", block, re.M))
+
+
+def dependency_states(templates_dir: str = TEMPLATES_DIR) -> set[str]:
+    path = os.path.join(templates_dir, DEPENDENCIES)
+    return vocabulary(read(path), "State Vocabulary") if os.path.isfile(path) else set()
+
+
+def check_dependencies(f: Findings, docs_dir: str, path: str, states: set[str]) -> None:
+    where_base = rel(path, docs_dir)
+    header = None
+    seen: dict[str, int] = {}
+    for line_no, line in enumerate(read(path).split("\n"), 1):
+        if not line.startswith("|"):
+            header = None
+            continue
+        cells = [c.strip().strip("`").strip() for c in line.strip().strip("|").split("|")]
+        if header is None:
+            lowered = [c.lower() for c in cells]
+            header = lowered if "id" in lowered and "state" in lowered else []
+            continue
+        if not header or set(line.strip()) <= set("|-: "):
+            continue
+        row = dict(zip(header, cells))
+        ident, state = row.get("id", ""), row.get("state", "")
+        if not ident or "{{" in ident:
+            continue
+        if ident in seen:
+            f.add("HIGH", "external-id-duplicate", "%s:%d" % (where_base, line_no),
+                  "%s also appears at line %d" % (ident, seen[ident]))
+        else:
+            seen[ident] = line_no
+        if states and state not in states:
+            f.add("MEDIUM", "external-state-unknown", "%s:%d" % (where_base, line_no),
+                  "%s state %r is not one of %s" % (ident, state, ", ".join(sorted(states))))
+        if state in SENT_STATES and not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", row.get("sent on", "")):
+            f.add("MEDIUM", "external-sent-on-missing", "%s:%d" % (where_base, line_no),
+                  "%s is %s but `Sent on` holds no YYYY-MM-DD date; its due date cannot be counted"
+                  % (ident, state))
 
 
 # ------------------------------------------------------------- registry checks
@@ -542,6 +609,10 @@ def main(argv: list[str]) -> int:
         check_issues(f, docs, issues_path, args.source_dir or None)
     else:
         f.add("MEDIUM", "missing-issue-log", "Known_Issues.md", "cross-screen issue log is absent")
+
+    dependencies_path = os.path.join(docs, DEPENDENCIES)
+    if os.path.isfile(dependencies_path):
+        check_dependencies(f, docs, dependencies_path, dependency_states())
 
     registry_path = os.path.join(docs, "Screens_Registry.md")
     if os.path.isfile(registry_path):

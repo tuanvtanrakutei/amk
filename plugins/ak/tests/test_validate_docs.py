@@ -318,3 +318,72 @@ def test_the_checklist_reports_a_required_key_left_not_applicable(tmp_path: Path
 
     assert [(r[0], r[1], r[3].split(" ")[0]) for r in findings.rows] == [
         ("HIGH", "checklist-required-na", "FE_E2E_TEST_CMD")]
+
+
+# --- A114: External_Dependencies.md, read against its template's vocabulary -----
+#
+# The review queue counts a dependency's due date from `Sent on` and skips `done` rows, so a
+# sent row without a date, a state nobody defined, or one ID on two rows each loses or
+# doubles an item. The states are read from the template, not copied (A103).
+
+DEPENDENCIES_HEADER = (
+    "# External Dependencies\n\n## Dependencies\n\n"
+    "| ID | Party | Ask | Source decision | Blocks | State | Sent on | Due | Link |\n"
+    "|---|---|---|---|---|---|---|---|---|\n"
+)
+
+
+def _dependencies(tmp_path: Path, *rows: str) -> list[tuple[str, str, str]]:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    path = docs / "External_Dependencies.md"
+    path.write_text(DEPENDENCIES_HEADER + "".join(r + "\n" for r in rows), encoding="utf-8")
+    findings = validate_docs.Findings()
+    validate_docs.check_dependencies(findings, str(docs), str(path), validate_docs.dependency_states())
+    return [(r[0], r[1], r[2].rsplit(":", 1)[1]) for r in findings.rows]
+
+
+def test_the_dependency_states_are_read_from_the_template() -> None:
+    assert validate_docs.dependency_states() == {"to-send", "sent", "in-progress", "done"}
+
+
+def test_well_formed_dependency_rows_pass(tmp_path: Path) -> None:
+    assert _dependencies(
+        tmp_path,
+        "| EXT-01 | Stock team | add a flag | Q1 | OrderEntry | to-send | | | |",
+        "| EXT-02 | Stock team | open an interface | Q2 | — | `sent` | 2026-01-02 | | |",
+        "| EXT-03 | Billing | widen a field | Q3 | OrderList | in-progress | 2026-01-03 | 2026-02-01 | x |",
+        "| EXT-04 | Billing | rename a column | Q4 | OrderList | done | | | |",
+    ) == []
+
+
+def test_a_sent_or_in_progress_row_needs_a_sent_on_date(tmp_path: Path) -> None:
+    assert _dependencies(
+        tmp_path,
+        "| EXT-01 | Stock team | add a flag | Q1 | OrderEntry | sent | | | |",
+        "| EXT-02 | Stock team | add a flag | Q1 | OrderEntry | in-progress | last week | | |",
+    ) == [("MEDIUM", "external-sent-on-missing", "7"), ("MEDIUM", "external-sent-on-missing", "8")]
+
+
+def test_dependency_ids_are_unique_and_states_in_the_vocabulary(tmp_path: Path) -> None:
+    assert _dependencies(
+        tmp_path,
+        "| EXT-01 | Stock team | add a flag | Q1 | OrderEntry | to-send | | | |",
+        "| EXT-01 | Stock team | add another | Q1 | OrderEntry | waiting | | | |",
+    ) == [("HIGH", "external-id-duplicate", "8"), ("MEDIUM", "external-state-unknown", "8")]
+
+
+def test_the_template_itself_is_a_clean_dependency_file() -> None:
+    template = PACKAGE / "modernize" / "templates" / "External_Dependencies.md"
+    findings = validate_docs.Findings()
+    validate_docs.check_dependencies(findings, str(template.parent), str(template),
+                                     validate_docs.dependency_states())
+    assert findings.rows == []
+
+
+def test_a_key_a_script_reads_by_name_is_not_dead() -> None:
+    plugin = PACKAGE / "modernize"
+    findings = validate_docs.Findings()
+    validate_docs.check_config(findings, str(plugin / "docs"), str(plugin),
+                               str(plugin / "templates" / "PROJECT_CONFIG.md"))
+    assert not [r for r in findings.rows if r[1] == "dead-config-key" and "REVIEW_DUE_DAYS" in r[3]]

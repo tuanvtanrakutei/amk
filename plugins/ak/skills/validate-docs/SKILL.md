@@ -44,8 +44,8 @@ action that would resolve it. Then stop and ask which ones to act on.
 
 | Severity | Meaning |
 |---|---|
-| HIGH | a stage would guess, or read the wrong thing: unfilled config key, a document consuming an undeclared key, duplicate issue number, code citing a non-existent issue, unparseable or duplicate-keyed registry, missing artifact folder |
-| MEDIUM | a reader is misled but no stage misbehaves: unresolved placeholder in an instance document, dangling document reference, malformed or unknown-status issue row, missing folder README |
+| HIGH | a stage would guess, or read the wrong thing: unfilled config key, a document consuming an undeclared key, duplicate issue number, code citing a non-existent issue, unparseable or duplicate-keyed registry, missing artifact folder, duplicate dependency ID |
+| MEDIUM | a reader is misled but no stage misbehaves: unresolved placeholder in an instance document, dangling document reference, malformed or unknown-status issue row, missing folder README, unknown dependency state, a sent dependency with no `Sent on` |
 | LOW | hygiene: a config key nothing reads, a resolved row citing a file that has moved |
 
 ## What each check catches, and why it exists
@@ -71,6 +71,11 @@ plausible. When reporting, it helps to say which real failure the check descends
   `test_purchasing_data_views.py` after it was renamed to `..._services.py`.
 - **registry checks** — the registry is the single source of truth for screen identity.
   A parse failure there silently mis-scopes every stage.
+- **external-id-duplicate / external-state-unknown / external-sent-on-missing** — a row of
+  `External_Dependencies.md` (when the project has one) used an ID twice, a state outside the
+  template's State Vocabulary (read from the template, not copied), or is `sent` /
+  `in-progress` with no `Sent on` date. The review queue lists those rows and counts their due
+  date from `Sent on`, so each defect loses, doubles or undates an item.
 
 ## Known limits — state these when reporting
 

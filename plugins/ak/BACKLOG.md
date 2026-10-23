@@ -12,6 +12,58 @@ that it should now work.
 
 ## Open
 
+### A114 - an ask of another team had no home, and no queue item had a due date
+
+**Found 2026-10-23, reviewing A111's queue with the project lead.** A decision of the project's
+own often becomes a request to another team: a master that team owns needs two fields before a
+screen can finish. That request was kept nowhere, so the queue could not say it was unsent, and
+a screen could stay blocked by an ask nobody had made. A111 also left every item `waiting`: no
+source carried a due date, so the page could not say what was late.
+
+Changed:
+
+- **`docs/External_Dependencies.md`**, a new modernize document (template
+  `modernize/templates/External_Dependencies.md`, copied by bootstrap, `Audience: person`). One
+  table: `ID` (`EXT-nn`), `Party`, `Ask`, `Source decision` (an item code), `Blocks` (screens,
+  by registry name or `F-` id), `State` (`to-send`, `sent`, `in-progress`, `done`), `Sent on`,
+  `Due`, `Link` (optional).
+- **Review queue kind `external`.** Every row not `done`. High when it blocks a screen in the
+  registry's Active Screens and is still `to-send`, or when it is overdue; medium otherwise.
+- **`validate-docs`**: `external-id-duplicate` (HIGH), `external-state-unknown` and
+  `external-sent-on-missing` (MEDIUM, a `sent` or `in-progress` row with no `Sent on` date).
+  The states are read from the template's State Vocabulary, not copied, which is what A103's
+  "Not yet done" asked for this kind of vocabulary. A key a modernize script reads by name
+  (`REVIEW_DUE_DAYS`) no longer counts as a `dead-config-key`.
+- **Due dates.** `REVIEW_DUE_DAYS` in `PROJECT_CONFIG.md` (new optional row, section 13,
+  default `erratum=5, decision=3, plan approval=5, test sign-off=5, review=5, issue=5,
+  external=10`; a kind left out keeps its default, `n/a` turns the defaults off). An item has a
+  `start` only when its source records a date: an erratum's `created_at`, a dependency's
+  `Sent on`, a coding record's 7.1 `Asked on`, a Known_Issues row's `Date`. Its `due` is the
+  source's own `Due` (a column, or the erratum's new optional `due` field in
+  `errata-contract.yaml`), else `start` plus the kind's days. The source's own `Due` stands
+  without a start (a `to-send` row with a `Due` is overdue after it; the project lead's choice);
+  a default deadline needs a start, so decision-queue items, plan rows, manual tests and
+  acceptances carry none.
+- **`--as-of YYYY-MM-DD`** (default today) is the day overdue is counted against. The JSON
+  carries `as_of`, `start` and `due`, never an overdue flag; the page's Status column says
+  `overdue` or `due YYYY-MM-DD`, with a line counting the overdue items. The same inputs and the
+  same `--as-of` give the same bytes.
+
+Trial, on a copy of a live project's workspace and docs with one invented `to-send` row
+blocking `F-001`, `--as-of 2026-10-30`: 6 items, 1 high (the external row, named as the
+registry names `F-001`), 4 medium, 1 low; the five errata are overdue (created 2026-10-21/22,
+due five days later). Two runs gave the same bytes; `validate-docs` reported nothing on the
+new file.
+
+Not yet done:
+
+- **Pipeline stops written by the skills (2a).** A gate's HIGH `examine / defer / cancel`
+  prompt still lives only in the conversation; a skill should write a line the queue reads.
+- Overdue does not change the risk of any kind but `external`; whether it should is the
+  project lead's call once the defaults have been used.
+- No command records a dependency's state change; the row is edited by hand, as
+  `how_to_record` says.
+
 ### A111 - nothing told an owner what waited on them
 
 **Found 2026-10-23, when the project lead decided that agents maintain the phases and the
@@ -62,13 +114,14 @@ Changed:
 Not yet done:
 
 - **No due date anywhere.** No source records one, so every item is `waiting`; `overdue` is
-  reserved and never set.
+  reserved and never set. Done in **A114** (`REVIEW_DUE_DAYS`, `--as-of`), with asks of other
+  teams as a new kind, `external`.
 - **Plan approval as a whole.** A screen plan has no approval field (§3.4 is `draft` or
   `frozen`, an agent's call), so the queue lists the plan's undecided rows, not "approve this
   plan".
 - **Pipeline stops are not recorded as state.** A gate's HIGH `examine / defer / cancel`
   prompt lives in the conversation; only the `traceability` row it leaves is read. The modernize
-  pipeline has no run-state file.
+  pipeline has no run-state file. Still to do after A114 (its 2a: a line the skills write).
 - **Parity differences** (`differs` in a `screen_parity.py` result) are not listed: whether one
   is a defect or a difference to accept is first the agent's to examine, and the result file's
   place is set per project.
