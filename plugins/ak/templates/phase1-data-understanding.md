@@ -1,5 +1,45 @@
 # {{APP_ID}} — Phase 1: Data Understanding
 
+Audience: person
+
+<!-- TWO LAYERS, AND WHICH ONE THIS IS (A110)
+
+     This document is in the person layer: a developer reads it once to rebuild the system.
+     The record layer - the registers, the catalogues, the target-intent records, the
+     traceability matrix, the to-be and the screen model - is read by agents. The two meet
+     on `{{APP_ID}}_Decisions.md`, which `$ak decisions` generates: one row per decided
+     item, the decision in force, and the evidence id that records it. Keep the
+     `Audience: person` line above in every language; the conformance gate looks for it.
+
+     Citation rules. When a round of decisions was applied to one application's phases,
+     nearly every sentence came to end in "Decided: ... (<evidence id>)", some carried the
+     history of a decision taken twice, per-screen field lists were pasted in, and the
+     citations per document roughly doubled. Conformance still passed. So:
+
+     1. Cite a decision by its item code - `RA-04`, `Q12`, or a decision-record row such as
+        `D-EXPORT-NAME` - never by its evidence id. Evidence ids stay for facts about the
+        legacy system.
+     2. Cite at most one code per claim, at the end of the sentence.
+     3. Put no decision history in the text: no "superseded", no "decided again", no list
+        of replaced ids. Mark a corrected sentence once with its `(E-nn)`. The history is
+        on the errata page and in `{{APP_ID}}_Decisions.md`.
+     4. A list longer than about 10 rows belongs in a catalogue; this document points to it.
+     5. Every evidence id you cite is a link to its row in this document's Evidence
+        Register: `[A99-P1-CODE-004](#ev-a99-p1-code-004)`. The anchor is the id in lower
+        case after `ev-`, and the register row opens with it (see the Evidence Register).
+        Cite an id from another phase the same way, and list it in this register too.
+
+     Writing order: prose first, then tables, then diagrams. Readable prose carries the
+     argument - what the system does, why it matters, what the replacement must not get
+     wrong. A table holds a set of parallel items the prose refers to. A diagram shows a
+     mechanism the prose names: an order of steps, a cycle, a fan-out, a failure branch.
+     This is the order of reading, not a ranking: the one-diagram floor below stands, and
+     a mechanism still gets its diagram.
+
+     The conformance gate's readability group measures 1, 3 and 5 (`citation_density`,
+     `no_decision_history`, `evidence_links`) and warns; it never fails a run.
+-->
+
 <!--
   Characteristic claim of this phase: what the data is, AND what it means to the
   business. The second half is the one that gets lost. A schema yields an
@@ -13,20 +53,34 @@
   Delete these comment blocks as you fill the document in.
 -->
 
+What you must not get wrong:
+
+<!-- At most 7 numbered items, the first thing the reader meets. Each reads: the legacy
+     fact, then what the replacement does (item code), then the section that proves it.
+     For example:
+
+     1. A cancelled order stays in the order table with a flag set; the replacement
+        deletes it instead (RA-02). See §4.
+
+     Before anything is decided, an item states the legacy fact and points to the risk
+     that carries it. -->
+
 <!-- WHO READS THIS, AND WHAT THAT COSTS YOU
 
      A reference file is read by an agent. A phase document is read by a developer who
      has to rebuild the system, and they read it once, under time pressure, looking for
      what they must not get wrong. Two habits follow:
 
-     Open with what they must not get wrong. A short numbered list, each item pointing at
-     the section that proves it. One Phase 2 was correct and unusable before it had one:
+     Open with what they must not get wrong: at most seven numbered items, each reading
+     legacy fact, then what the replacement does (item code), then the section that
+     proves it. One Phase 2 was correct and unusable before it had one:
      the fact that re-running the morning import destroys the quantities staff typed the
      night before was in the document, four sections deep, in prose.
 
-     Diagram a mechanism; tabulate a set; write prose only for what neither can hold.
-     `references/technical-writing.md` holds the rules: which diagram for which shape,
-     and how to write the prose that remains.
+     Write the prose first, then the tables, then the diagrams (the writing order above):
+     prose carries the argument, a table holds a set, a diagram shows a mechanism.
+     `references/technical-writing.md` holds the rules: how to write the prose, and which
+     diagram for which shape.
      One required diagram per phase is a floor, not a budget. Reach for one whenever the
      thing being described has a shape: an order of steps, a cycle, a lifecycle with a
      failure branch, a fan-out from one object to many, or three artefacts that should
@@ -82,6 +136,25 @@ a translation reads like a definition and is not one.
 | CODE | | | |
 | DOCUMENT | | | |
 | INTERVIEW | | | |
+
+## Decided for the replacement
+
+<!-- ONE table, and the only place in this document where a decision's effect is spelled
+     out. It replaces the "Decided: ..." text that otherwise ends up after every sentence
+     a decision touches. One row per decided item that changes what this phase describes:
+
+       Item                  the item code: a risk (`RA-04`), a question (`Q12`), or a
+                             decision-record row no register holds (`D-EXPORT-NAME`).
+       Decision              the word `{{APP_ID}}_Decisions.md` gives it: fix, preserve,
+                             drop, defer, or decided.
+       Effect on this phase  one sentence, with the section it changes.
+
+     No evidence id and no history: the decisions page maps each code to its record and
+     lists what it replaced. Before anything is decided, write "Nothing is decided yet."
+     under the heading and leave the table empty. -->
+
+| Item | Decision | Effect on this phase |
+|---|---|---|
 
 ## Contents
 
@@ -256,8 +329,8 @@ erDiagram
 <!-- RD-nn, severity HIGH/MEDIUM/LOW, and a mitigation or an explicit "none
      proposed". A risk without a severity cannot be prioritised. -->
 
-| ID | Risk | Severity | Consequence at migration | Mitigation |
-|---|---|---|---|---|
+| ID | Risk | Severity | Consequence at migration | Mitigation | Decision |
+|---|---|---|---|---|---|
 
 <!-- In the register each risk carries a `needs` block (ID-11): kind DISPOSITION, party
      `decider`, default `mitigation`, and a `class` - technical, data, retired or
@@ -265,7 +338,14 @@ erDiagram
      this row is the recommended answer, carried until the decider says otherwise, so write
      it as an action the replacement takes. When it waits on an open question, name the Q
      in it and put the Q in `depends_on`. Write "none proposed" when there is none: the risk
-     then has no default, and it blocks. -->
+     then has no default, and it blocks.
+
+     Decision holds the disposition word and the code it is recorded under, as
+     `{{APP_ID}}_Decisions.md` gives them: `fix (RA-04)`, or `drop (D-EXPORT-NAME)` when a
+     decision-record row decided it. Write `open` until it is decided. Once it is, the
+     Mitigation says what the replacement will build - the decided action - and the
+     gate's `decisions_agree` warns when the row does not name the recorded word. Keep the
+     column after Mitigation: the decision tools read the first five by position. -->
 
 ## 8. Assumptions, Unknowns, and Questions
 
@@ -348,7 +428,10 @@ erDiagram
 ## Evidence Register
 
 <!-- Every claim above resolves here. Status is EXTRACTED, INFERRED or AMBIGUOUS;
-     an INFERRED claim carries its confidence and never loses the label. -->
+     an INFERRED claim carries its confidence and never loses the label.
+     Each row opens with its anchor, then the id: `<a id="ev-a99-p1-code-004"></a>A99-P1-CODE-004`
+     - the id in lower case after `ev-`. Every citation above links to it, and every id
+     cited above has a row here, an id from another phase included (`evidence_links`). -->
 
 | Claim | Status | Class | Source | Location | Confidence |
 |---|---|---|---|---|---:|

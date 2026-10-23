@@ -27,8 +27,14 @@ Two groups, and the split is the honest part:
               exists to close.
 
 A third group, READABILITY, measures what `references/technical-writing.md` asks of
-the prose: diagrams before paragraphs, short sentences, no hedges. It warns and never
-fails, because the reference set is its calibration and does not pass it either.
+the prose: diagrams before paragraphs, short sentences, no hedges, and (A110) that a
+phase stays in the person layer - it names its reader, keeps its must-not list short, cites
+decisions by item code rather than by evidence id, and tells no decision history. It warns
+and never fails, because the reference set is its calibration and does not pass it either.
+
+One apparatus check warns instead of failing: `decisions_agree`, which compares a phase's
+risk rows and carried-forward rows with the decisions the registers hold (A108). A phase
+published before a decision was taken is out of date, not malformed.
 
 Exit 0 when every content check passes, 1 otherwise. `--strict` also fails on
 apparatus. `--render` adds a content check that every Mermaid block renders.
@@ -361,6 +367,46 @@ PROSE_WORDS_PER_DIAGRAM = 300
 SENTENCE_WORD_LIMIT = 30          # the guidance says 25; this reports the clear cases
 LONG_SENTENCES_PER_DOCUMENT = 10
 
+# A110. A phase is read by a person and a register by an agent, and when a round of
+# decisions was applied to one application's phases the record came into the text: nearly
+# every sentence ended in an evidence id, some carried the history of a decision taken twice,
+# and per-screen field lists were pasted in. Conformance still passed. These four measure the
+# person layer; like the rest of this group they warn and never fail, so a document already
+# published by another project does not start failing.
+#
+# One evidence id per 40 words of prose is the line: about one per two sentences at the
+# 25-word limit `technical-writing.md` sets. The first figure tried was one per 30, and the
+# documents the review had found overloaded all passed it narrowly: an id on nearly every
+# sentence of a must-not list, averaged over a section of plain paragraphs, stays above 30.
+# Tables, code blocks and the Evidence Register are where ids belong and are not counted;
+# an item code such as `RA-04` is not an evidence id and is not counted either.
+CITATION_WORDS_PER_ID = 40
+# Every evidence id a person-layer document cites is a link to its row in the same
+# document's Evidence Register, so a reader follows it with one click instead of a search.
+# The anchor is the id in lower case after `ev-`, and the register row opens with it.
+EVIDENCE_ANCHOR = re.compile(r'<a\s+id="(ev-[a-z0-9_-]+)"\s*>\s*</a>')
+EVIDENCE_LINK = re.compile(r"\[([A-Z][A-Z0-9_-]{1,15}-P[1-6]-[A-Z][A-Z0-9_]*-\d{3,})\]\(#([^)\s]+)\)")
+
+
+def evidence_anchor(evidence_id: str) -> str:
+    """`A99-P1-CODE-004` -> `ev-a99-p1-code-004`."""
+    return "ev-" + evidence_id.lower()
+MUST_NOT_LIMIT = 7
+AUDIENCE_LINE = re.compile(r"(?im)^[ \t]*[*_]*Audience[*_]*\s*:\s*[*_]*\s*(person|bridge|record)\b")
+MUST_NOT_HEAD = re.compile(r"(?i)^(?:#{1,6}\s*)?[*_]*what you must not get wrong[*_:]*\s*$")
+LIST_ITEM = re.compile(r"^(?:\d+[.)]|[-*+])\s+")
+EVIDENCE_REGISTER_HEAD = re.compile(r"(?im)^##\s+evidence register\s*$")
+# Decision history in the text: how a decision was reached, not what it is. `replaces` is
+# history only when it names what was replaced - an evidence id, an `E-` number or an
+# earlier decision - because "the import replaces the batch" is a fact about the legacy
+# system. `superseded variants` of a form are objects, not history.
+DECISION_HISTORY = re.compile(
+    r"\bsuperseded\b(?!\s+(?:variants?|versions?|cop(?:y|ies)|forms?|reports?|objects?)\b)"
+    r"|\bdecided\s+again\b|\bre-?decided\b"
+    r"|\breplaces\b(?=[^.;|]*?(?:\bE-\d{2}\b|\b[A-Z][A-Z0-9_-]{1,15}-P[1-6]-[A-Z][A-Z0-9_]*-\d{3,}\b"
+    r"|\bthe\s+(?:earlier|previous|prior|first)\s+decision))",
+    re.IGNORECASE)
+
 
 def document_language(path: Path | None) -> str:
     match = LANGUAGE_SUFFIX.search(path.name) if path is not None else None
@@ -393,6 +439,95 @@ def h2_sections(text: str) -> list[tuple[str, str]]:
     parts = re.split(r"(?m)^## ", text)
     return [(head.strip(), body) for head, _, body in
             (part.partition("\n") for part in parts[1:])]
+
+
+def without_evidence_register(text: str) -> str:
+    """The document with its `## Evidence Register` section cut out, up to the next H2."""
+    match = EVIDENCE_REGISTER_HEAD.search(text)
+    if not match:
+        return text
+    rest = text[match.end():]
+    following = re.search(r"(?m)^## ", rest)
+    return text[:match.start()] + (rest[following.start():] if following else "")
+
+
+def running_prose(text: str) -> str:
+    """Prose a person reads: no comments, fences, tables, headings or Evidence Register."""
+    body = FENCE.sub("", COMMENT.sub("", without_evidence_register(text)))
+    return "\n".join(line for line in body.splitlines()
+                     if not line.lstrip().startswith(("|", "#")))
+
+
+def audience_of(text: str) -> str | None:
+    """The reader a document names before its first section, or None."""
+    body = COMMENT.sub("", text)
+    first = re.search(r"(?m)^## ", body)
+    match = AUDIENCE_LINE.search(body[:first.start()] if first else "\n".join(body.splitlines()[:40]))
+    return match.group(1).lower() if match else None
+
+
+def must_not_items(text: str) -> int | None:
+    """How many items the "What you must not get wrong" list holds; None when there is none."""
+    lines = FENCE.sub("", COMMENT.sub("", text)).splitlines()
+    start = next((n for n, line in enumerate(lines) if MUST_NOT_HEAD.match(line.strip())), None)
+    if start is None:
+        return None
+    count = 0
+    for line in lines[start + 1:]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            break
+        if LIST_ITEM.match(line):
+            count += 1
+        elif not line[:1].isspace() and count:
+            break
+    return count
+
+
+def history_mentions(text: str, closed: tuple[str, ...]) -> list[str]:
+    """Phrases that tell a decision's history, in prose and table cells.
+
+    A cell that opens with a closed marker (`**Superseded - Q5**`) is the register's state,
+    which the template asks for, and is not history.
+    """
+    body = prose(FENCE.sub("", COMMENT.sub("", without_evidence_register(text))))
+    found: list[str] = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        parts = decision_queue.split_row(stripped) if stripped.startswith("|") else [stripped]
+        for part in parts:
+            if stripped.startswith("|") and closed and decision_queue.starts_closed(part, closed):
+                continue
+            for match in DECISION_HISTORY.finditer(part):
+                start = max(0, match.start() - 30)
+                found.append(" ".join(part[start:match.end() + 30].split()))
+    return found
+
+
+def unlinked_evidence(text: str) -> tuple[list[str], list[str], int]:
+    """(ids cited without a link, links whose anchor is not in this document, links that work).
+
+    Read outside comments, fences and the Evidence Register, in prose and in tables alike.
+    A register row printed elsewhere (`| <a id=...></a>ID |`) is a listing, not a citation.
+    An item code such as `RA-04` is not an evidence id and is never asked for a link.
+    """
+    anchors = set(EVIDENCE_ANCHOR.findall(COMMENT.sub("", text)))
+    body = FENCE.sub("", COMMENT.sub("", without_evidence_register(text)))
+    body = re.sub(EVIDENCE_ANCHOR.pattern + r"\s*(?:" + CITATION.pattern + r")?", " ", body)
+    unlinked: list[str] = []
+    broken: list[str] = []
+    working = 0
+    for line in body.splitlines():
+        for match in EVIDENCE_LINK.finditer(line):
+            ident, target = match.groups()
+            if target == evidence_anchor(ident) and target in anchors:
+                working += 1
+            else:
+                broken.append(f"{ident} -> #{target}")
+        unlinked += CITATION.findall(EVIDENCE_LINK.sub(" ", line))
+    return unlinked, broken, working
 
 
 def readability_checks(phase: int, text: str, path: Path | None = None) -> list[dict[str, Any]]:
@@ -433,6 +568,58 @@ def readability_checks(phase: int, text: str, path: Path | None = None) -> list[
         "hedges", bool(hedges),
         f"{len(hedges)} hedge(s) about the system; state the fact or give it a UK- "
         f"identifier: {examples}" if hedges else "none",
+    ))
+
+    # A110 - the person layer.
+    audience = audience_of(text)
+    results.append(result(
+        "audience_declared", audience is None,
+        f"Audience: {audience}" if audience
+        else "no `Audience: person` line before the first section; a reader cannot tell "
+             "whether the document was written for them or for an agent",
+    ))
+
+    items = must_not_items(text)
+    if items is None:
+        results.append({"check": "must_not_list_size", "group": "readability", "status": "SKIP",
+                        "detail": "no \"What you must not get wrong\" list"})
+    else:
+        results.append(result(
+            "must_not_list_size", items > MUST_NOT_LIMIT,
+            f"{items} item(s); at most {MUST_NOT_LIMIT}, each a legacy fact, what the "
+            "replacement does (item code), and the section" if items > MUST_NOT_LIMIT
+            else f"{items} item(s)",
+        ))
+
+    running = running_prose(text)
+    words = len(running.split())
+    citations = len(CITATION.findall(running))
+    results.append(result(
+        "citation_density", citations * CITATION_WORDS_PER_ID > words and citations > 0,
+        f"{citations} evidence id(s) in {words} words of prose, one per "
+        f"{words // max(citations, 1)} words; the limit is one per {CITATION_WORDS_PER_ID}. "
+        "Cite a decision by its item code, and leave evidence ids to the tables"
+        if citations * CITATION_WORDS_PER_ID > words and citations
+        else f"{citations} evidence id(s) in {words} words of prose",
+    ))
+
+    history = history_mentions(text, signals_for("closed_item", path))
+    results.append(result(
+        "no_decision_history", bool(history),
+        f"{len(history)} mention(s) of how a decision was reached; mark a corrected sentence "
+        f"once with its E-nn and leave the history to the errata page and the decisions "
+        f"page: {history[:3]}" if history else "none",
+    ))
+
+    unlinked, broken, working = unlinked_evidence(text)
+    results.append(result(
+        "evidence_links", bool(unlinked or broken),
+        (f"{len(unlinked)} evidence id(s) cited without a link, first: {sorted(set(unlinked))[:4]}; "
+         if unlinked else "")
+        + (f"{len(broken)} link(s) to an anchor this document does not have, first: {broken[:3]}; "
+           if broken else "")
+        + "write `[ID](#ev-id)` and open the register row with `<a id=\"ev-id\"></a>ID`"
+        if unlinked or broken else f"{working} citation(s), each a link to its register row",
     ))
     return results
 
@@ -678,6 +865,20 @@ def apparatus_checks(phase: int, text: str, registers: dict[str, Any],
             else f"{comparison.compared} row(s) compared against the register{note}",
         ))
 
+        # A108, first slice (A110). Every risk had been decided and the phases still described
+        # the state before: a Mitigation prescribing the opposite of its disposition, and
+        # carried-forward rows calling closed questions unchanged. WARN, not FAIL: a document
+        # published before its decisions were taken is out of date, not malformed.
+        evidence = registers.get("evidence_items")
+        if evidence is not None:
+            findings, compared = decision_agreement(phase, text, entries, evidence)
+            results.append({
+                "check": "decisions_agree", "group": "apparatus",
+                "status": "WARN" if findings else "PASS",
+                "detail": (f"{len(findings)} disagreement(s) with the decisions: " + "; ".join(findings))
+                if findings else f"{compared} decided or carried row(s) agree with the register",
+            })
+
     # A67. Errata was checked in Phase 6 only, and corrections do not wait for Phase 6.
     # One Phase 3 corrected two published Phase 1 risks - the actor behind the `99`
     # placeholders, and what destroys `準備数` - wrote **corrected** in its
@@ -722,6 +923,68 @@ def apparatus_checks(phase: int, text: str, registers: dict[str, Any],
             else "no correction announced",
         ))
     return results
+
+
+OPEN_STATES = ("open", "unchanged", "advanced")
+
+
+def decision_agreement(phase: int, text: str, entries: list[dict[str, Any]],
+                       evidence: dict[str, dict[str, Any]]) -> tuple[list[str], int]:
+    """Where this phase's text disagrees with a decision the registers hold.
+
+    Two things are compared. A risk this phase allocated whose `resolved_by` is a
+    TARGET_INTENT item recording a disposition: its row must name that word (fix, preserve,
+    drop, defer) somewhere. And a carried-forward row whose state says the item is still
+    open (`open`, `unchanged`, `advanced`) while the register has closed it.
+    """
+    by_id = {str(e.get("id")): e for e in entries if e.get("id")}
+    tables = decision_queue.tables(text)
+    risk_rows: dict[str, list[str]] = {}
+    for table in tables:
+        if len(table.header) < 5:
+            continue
+        for row in table.rows:
+            if row.identifier and row.identifier not in risk_rows:
+                risk_rows[row.identifier] = row.cells
+    findings: list[str] = []
+    compared = 0
+    for entry in entries:
+        if (entry.get("phase") != phase
+                or entry.get("namespace") not in decision_queue.RISK_NAMESPACES):
+            continue
+        closer = str(entry.get("resolved_by") or "").strip()
+        item = evidence.get(closer)
+        if not item or item.get("evidence_class") != "TARGET_INTENT":
+            continue
+        word = decision_queue.recorded_disposition(item)
+        if not word:
+            continue
+        compared += 1
+        ident = str(entry.get("id"))
+        cells = risk_rows.get(ident)
+        if cells is None:
+            findings.append(f"{ident} is decided {word} and has no risk row in this document")
+        elif not re.search(rf"\b{re.escape(word)}\b", " ".join(cells[1:]), re.IGNORECASE):
+            findings.append(f"{ident} is decided {word}; its risk row does not say {word}")
+
+    for table in tables:
+        header = [re.sub(r"\s*\(.*\)$", "", h).strip().casefold() for h in table.header]
+        column = next((n for n, h in enumerate(header) if h in ("state", "status")), None)
+        if column is None:
+            continue
+        for row in table.rows:
+            entry = by_id.get(row.identifier or "")
+            if (entry is None or entry.get("namespace") not in ("Q", "UK-")
+                    or not isinstance(entry.get("phase"), int) or entry["phase"] >= phase
+                    or len(row.cells) <= column):
+                continue
+            compared += 1
+            state = re.sub(r"[*_`]", "", row.cells[column]).strip().casefold()
+            if not decision_queue.is_open(entry) and state.split(" ")[0] in OPEN_STATES:
+                closer = entry.get("resolved_by") or entry.get("superseded_by")
+                findings.append(f"{row.identifier} is closed in the register ({closer}) and its "
+                                f"carried-forward row says {state.split(' ')[0]}")
+    return findings, compared
 
 
 def load_registers(outputs: Path) -> dict[str, Any]:
@@ -776,6 +1039,8 @@ def load_registers(outputs: Path) -> dict[str, Any]:
         except json.JSONDecodeError:
             items = []
         registers["evidence_total"] = len(items)
+        registers["evidence_items"] = {str(item["id"]): item for item in items
+                                       if isinstance(item, dict) and item.get("id")}
         registers["evidence_unclassified"] = sum(
             1 for item in items
             if isinstance(item, dict) and not item.get("evidence_class"))
@@ -960,7 +1225,7 @@ def main() -> int:
     else:
         print(f"{report['status']}: {len(documents)} phase document(s); "
               f"{content_failed} content failure(s), {apparatus_failed} apparatus failure(s), "
-              f"{readability_warned} readability warning(s)")
+              f"{readability_warned} warning(s)")
         for entry in report["phases"]:
             failures = [r for r in entry["checks"] if r["status"] == "FAIL"]
             warnings = [r for r in entry["checks"] if r["status"] == "WARN"]

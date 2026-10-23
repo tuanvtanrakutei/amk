@@ -193,7 +193,7 @@ optional items exist concretely, and become the **primary** Stage 1 input rather
 
 | Optional item above | Concrete artifact | Format |
 |---|---|---|
-| 5. Draft screen inventory | Phase2 §1 "Screen, Form, and Report Inventory"; per-screen detail in Phase2 §3 (`### {FORM_ID} — {FORM_NAME}`) | phase document |
+| 5. Draft screen inventory | Phase2 §1 "Screen, Form, and Report Inventory"; per-screen purpose and what differs in Phase2 §3 (`### {FORM_ID} — {FORM_NAME}`); fields, controls and events in `ScreenCatalogue.md` | phase document |
 | 6. Dependency map | `TraceabilityMatrix.csv` (`traceability-row`: `screen`, `vba_event`, `processing`, `data_target`, `output`, `evidence_ids`) | schema-defined CSV |
 | 7. Extraction coverage report | `coverage.json` (`extracted` / `skipped` / `failed` / `unsupported` per object type), `failures/extraction-failures.json` | schema-defined JSON |
 

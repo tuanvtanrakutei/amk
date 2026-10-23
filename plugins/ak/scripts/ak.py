@@ -174,8 +174,9 @@ def parse_args() -> argparse.Namespace:
 
     decisions = commands.add_parser(
         "decisions",
-        help="Build the question list and the decision queue from the identifier register: "
-             "one agenda per party, dependencies first, what is already with the customer.",
+        help="Build the question list, the decision queue and the decisions page from the "
+             "registers: one agenda per party, dependencies first, what is already with the "
+             "customer, and one row per decided item.",
     )
     decisions.add_argument("--app-root", required=True)
     decisions.add_argument("--language", help="Phase document language the question text is read from.")
@@ -199,7 +200,7 @@ def parse_args() -> argparse.Namespace:
     decisions.add_argument("--if-wrong", help="With --assume: what stops holding if it is wrong.")
     decisions.add_argument("--dry-run", action="store_true")
     decisions.add_argument("--replace-handwritten", action="store_true",
-                           help="Overwrite a QuestionList.md this command did not write.")
+                           help="Overwrite a QuestionList.md or Decisions.md this command did not write.")
 
     errata = commands.add_parser(
         "errata",

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Build the decision queue and the question list from the identifier register (A75, slice 2).
+"""Build the decision queue, the question list and the decisions page from the registers (A75, A110).
 
-    $ak decisions --app-root P                  write {APP}_QuestionList.md and {APP}_DecisionQueue.json
+    $ak decisions --app-root P                  write {APP}_QuestionList.md, {APP}_DecisionQueue.json
+                                                and {APP}_Decisions.md
     $ak decisions --app-root P --dry-run        say what they would hold, write nothing
     $ak decisions --app-root P --party 常温庫   print one party's agenda, ready to paste, write nothing
     $ak decisions --app-root P --link Q5=5      record that Q5 was posted as Q&A 5, then build
@@ -15,10 +16,13 @@ and the three things the machine has already done for them - items closed by evi
 already in hand, items already with the customer, items the customer has answered and
 nobody has recorded.
 
-Two outputs. `{APP}_QuestionList.md` is read by a person: the developer relaying questions
+Three outputs. `{APP}_QuestionList.md` is read by a person: the developer relaying questions
 and the party each agenda is addressed to. `{APP}_DecisionQueue.json` is read by agents and
-sits beside the other registers. Neither carries a date, so the same register gives the
-same bytes and a change to either is a change to the register.
+sits beside the other registers. `{APP}_Decisions.md` (A110) is the bridge between the two
+layers: one row per decided item with the decision in force, beside the phase documents,
+so a phase can cite a decision by its item code and say nothing about how it was reached.
+None carries a date, so the same registers give the same bytes and a change to any is a
+change to a register.
 
 Reads the Q&A register fresh rather than the record `$ak interviews` stored, because the
 record is a snapshot and the customer's register is not: one was five rows when the CSV
@@ -31,10 +35,11 @@ default, `N=<choice>` overrides one. Each answer is a row of a TARGET_INTENT rec
 `input/target-intent/` and an evidence item citing it, and the item is closed against that
 evidence - an answer is evidence, never queue text.
 
-Writes nothing but its own two outputs - the register only for `--link` and `--decide`, and
+Writes nothing but its own three outputs - the register only for `--link` and `--decide`, and
 the evidence register and a target-intent record only for `--decide`, with every previous
-register kept under `.ak/backups/`. It will not overwrite a QuestionList.md it did not write:
-one project's was written by hand with its own question numbers, which is how A12 happened.
+register kept under `.ak/backups/`. It will not overwrite a QuestionList.md or a Decisions.md
+it did not write: one project's question list was written by hand with its own question
+numbers, which is how A12 happened.
 
 Exit 0 when the register is routable, 1 when it is not (an open question with no `needs`, a
 reference that points nowhere), 2 when the command cannot run.
@@ -59,6 +64,7 @@ import decision_agenda as da  # noqa: E402
 import decision_assume as da_assume  # noqa: E402
 import decision_place as da_place  # noqa: E402
 import decision_batch as batch  # noqa: E402
+import decision_page as dpage  # noqa: E402
 import decision_precheck as dp  # noqa: E402
 import decision_queue as dq  # noqa: E402
 import decision_register as dr  # noqa: E402
@@ -255,6 +261,24 @@ def assume(space: workspace_contract.Workspace, output: Path, register_file: Pat
             print(f"  edit by hand: {line}")
 
 
+def decisions_page(space: workspace_contract.Workspace, output: Path, register_file: Path,
+                   entries: list[dict[str, Any]], app: str) -> tuple[Path, str, dpage.Page]:
+    """`{APP}_Decisions.md`: the decided items, beside the phase documents (A110)."""
+    evidence = list((dr.evidence_index(output) or {}).values())
+    errata = dr.errata_entries(output)
+    page = dpage.build(entries, evidence, errata)
+    titles = {str(e["id"]): str(e.get("title") or "") for e in entries if e.get("id")}
+    sources = [register_file.name]
+    if evidence:
+        sources.append(dr.evidence_path(output).name)
+    if errata is not None:
+        sources += [p.name for p in dr._find(output, "*_Errata.json")]
+    text = dpage.render(page, app, titles=titles, abouts=dpage.record_abouts(space.root, evidence),
+                        sources=", ".join(f"`{s}`" for s in sources),
+                        records=dpage.record_rows(space.root, evidence))
+    return output / f"{app}_Decisions.md", text, page
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -284,7 +308,7 @@ def main() -> int:
     parser.add_argument("--if-wrong", help="With --assume: what stops holding if it is wrong.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--replace-handwritten", action="store_true",
-                        help="Overwrite a QuestionList.md this command did not write.")
+                        help="Overwrite a QuestionList.md or Decisions.md this command did not write.")
     args = parser.parse_args()
     if args.decide and args.party:
         parser.error("--decide records answers and --party writes nothing; run them apart")
@@ -359,10 +383,13 @@ def main() -> int:
         list_path = output / f"{app}_QuestionList{'' if language == 'EN' else '_' + language}.md"
         queue_path = register_file.parent / f"{app}_DecisionQueue.json"
 
-        if (list_path.exists() and not dr.read_text(list_path).startswith(da.GENERATED)
-                and not args.replace_handwritten):
-            raise Problem(f"{list_path.name} exists and this command did not write it; move it "
-                          "aside, or pass --replace-handwritten")
+        page_path, page_text, page = decisions_page(space, output, register_file, entries, app)
+
+        for path, marker in ((list_path, da.GENERATED), (page_path, dpage.GENERATED)):
+            if (path.exists() and not dr.read_text(path).startswith(marker)
+                    and not args.replace_handwritten):
+                raise Problem(f"{path.name} exists and this command did not write it; move it "
+                              "aside, or pass --replace-handwritten")
 
         c = queue["counts"]
         print(f"{c['open']} open item(s): {c['blocking']} blocking, {c['proceeding_on_default']} "
@@ -387,11 +414,16 @@ def main() -> int:
                   + ", ".join(q["id"] for q in queue["untracked_qa"]))
         for problem in problems + queue["problems"]:
             print(f"  PROBLEM {problem}")
+        print(f"{len(page.rows)} decided item(s) in force, {len(page.superseded)} superseded decision(s)"
+              + (f", {len(page.unplaced)} target-intent item(s) naming no item code"
+                 if page.unplaced else ""))
+        for note in page.problems:
+            print(f"  note: {note}")
 
         if args.dry_run:
-            print(f"dry run: would write {list_path} and {queue_path}")
+            print(f"dry run: would write {list_path}, {queue_path} and {page_path}")
         else:
-            for path, text in ((list_path, markdown), (queue_path, document)):
+            for path, text in ((list_path, markdown), (queue_path, document), (page_path, page_text)):
                 same = path.is_file() and dr.read_text(path) == text
                 if not same:
                     dr.atomic_write(path, text)

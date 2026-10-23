@@ -61,7 +61,11 @@ def read_text(path: Path) -> str:
 # `## Evidence Register` in English and `## Register bằng chứng` in Vietnamese, and a
 # check that keys on the English wording is A49 - which was found in the same review as
 # this. Shape survives translation.
-REGISTER_ROW = re.compile(r"^\s*\|\s*([A-Z][A-Z0-9]*-P\d+-[A-Z][A-Z0-9_]*-\d{3})\s*\|")
+#
+# A110: a register row opens with the anchor its citations link to,
+# `| <a id="ev-a99-p1-code-004"></a>A99-P1-CODE-004 |`, and is still a listing.
+REGISTER_ROW = re.compile(
+    r'^\s*\|\s*(?:<a\s+id="ev-[a-z0-9_-]+"\s*>\s*</a>\s*)?([A-Z][A-Z0-9]*-P\d+-[A-Z][A-Z0-9_]*-\d{3})\s*\|')
 
 
 def cited_in_documents(paths: list[Path]) -> dict[str, list[str]]:
