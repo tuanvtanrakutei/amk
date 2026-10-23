@@ -40,8 +40,8 @@ Risk comes from the source's own severity or blocking flag; `RISK_RULES` below i
 Due dates (A114): an item has a `start` when its source records one (an erratum's
 `created_at`, a dependency's `Sent on`, a pending answer's `Asked on`, an issue row's `Date`)
 and then a `due`: the source's own `Due` when it has one, else `start` plus the kind's days in
-`REVIEW_DUE_DAYS` (PROJECT_CONFIG.md; `DEFAULT_DUE_DAYS` when the key is absent). No start, no
-due. The JSON carries the two dates only; the page says `overdue` or `due YYYY-MM-DD`, counted
+`REVIEW_DUE_DAYS` (PROJECT_CONFIG.md; `DEFAULT_DUE_DAYS` when the key is absent). A source's
+own `Due` stands without a start; a default deadline needs one. The JSON carries the two dates only; the page says `overdue` or `due YYYY-MM-DD`, counted
 as of `--as-of` (default today).
 
 The workspace is `--workspace`, else `AK_RUN_DIR` in `PROJECT_CONFIG.md` resolved against the
@@ -296,14 +296,12 @@ class Project:
         return days
 
     def deadline(self, kind: str, start: Any, due: Any = None) -> dict[str, str | None]:
-        """`start` and `due` as ISO dates. No start, no due; the source's own due wins."""
-        begun = as_date(start)
-        if begun is None:
-            return {"start": None, "due": None}
-        until = as_date(due)
-        if until is None and kind in self.due_days:
+        """`start` and `due` as ISO dates. The source's own due stands on its own; a default
+        deadline from `REVIEW_DUE_DAYS` needs a start to count from."""
+        begun, until = as_date(start), as_date(due)
+        if until is None and begun is not None and kind in self.due_days:
             until = begun + timedelta(days=self.due_days[kind])
-        return {"start": begun.isoformat(), "due": until.isoformat() if until else None}
+        return {"start": begun.isoformat() if begun else None, "due": until.isoformat() if until else None}
 
     def overdue(self, item: dict[str, Any]) -> bool:
         return bool(item.get("due")) and self.as_of > date.fromisoformat(item["due"])

@@ -40,8 +40,10 @@ Changed:
   `start` only when its source records a date: an erratum's `created_at`, a dependency's
   `Sent on`, a coding record's 7.1 `Asked on`, a Known_Issues row's `Date`. Its `due` is the
   source's own `Due` (a column, or the erratum's new optional `due` field in
-  `errata-contract.yaml`), else `start` plus the kind's days. No start, no due: decision-queue
-  items, plan rows, manual tests and acceptances carry none.
+  `errata-contract.yaml`), else `start` plus the kind's days. The source's own `Due` stands
+  without a start (a `to-send` row with a `Due` is overdue after it; the project lead's choice);
+  a default deadline needs a start, so decision-queue items, plan rows, manual tests and
+  acceptances carry none.
 - **`--as-of YYYY-MM-DD`** (default today) is the day overdue is counted against. The JSON
   carries `as_of`, `start` and `due`, never an overdue flag; the page's Status column says
   `overdue` or `due YYYY-MM-DD`, with a line counting the overdue items. The same inputs and the

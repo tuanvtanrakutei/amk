@@ -422,6 +422,34 @@ def test_the_page_says_overdue_or_due_as_of_the_day_given(tmp_path: Path) -> Non
     assert next(line for line in page.split("\n") if "EXT-03 is with" in line).endswith("| overdue |")
 
 
+UNSENT_WITH_DUE = "| EXT-06 | Stock team | confirm a code list | Q1 | Archive | to-send | | 2026-01-20 | |\n"
+
+
+def with_unsent_due(tmp_path: Path) -> Path:
+    repo = with_dependencies(tmp_path)
+    path = repo / "docs" / rq.DEPENDENCIES
+    path.write_text(path.read_text(encoding="utf-8") + UNSENT_WITH_DUE, encoding="utf-8")
+    return repo
+
+
+def test_an_unsent_row_past_its_own_due_is_overdue(tmp_path: Path) -> None:
+    repo = with_unsent_due(tmp_path)
+    before = by_id(queue_of(repo, "2026-01-20"))["external:EXT-06"]
+    assert before["risk"] == "medium"                           # Archive is not in the registry
+    item = by_id(queue_of(repo, "2026-01-21"))["external:EXT-06"]
+    assert (item["start"], item["due"]) == (None, "2026-01-20")
+    assert item["risk"] == "high"                               # overdue on its own Due
+    assert rq.status_of(item, "2026-01-21") == "overdue"
+
+
+def test_an_unsent_row_keeps_its_own_due_without_a_sent_on(tmp_path: Path) -> None:
+    repo = with_unsent_due(tmp_path)
+    assert run(repo, "--as-of", "2026-01-09").returncode == 0
+    page = (repo / "docs" / rq.PAGE).read_text(encoding="utf-8")
+    assert next(line for line in page.split("\n") if "Send EXT-06" in line).endswith("| due 2026-01-20 |")
+    assert next(line for line in page.split("\n") if "Send EXT-01" in line).endswith("| waiting |")
+
+
 def test_a_bad_as_of_cannot_run(tmp_path: Path) -> None:
     result = run(build_project(tmp_path), "--as-of", "2026-13-01")
     assert result.returncode == 2 and "--as-of" in result.stderr

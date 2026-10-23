@@ -24,7 +24,7 @@ date; otherwise medium. `validate-docs` checks the rows.
 | `Blocks` | Screens that cannot finish without it, as `Screens_Registry.md` names them or by `F-` id; `—` when none |
 | `State` | One of the State Vocabulary below |
 | `Sent on` | The date the ask was sent, `YYYY-MM-DD`. Required once the state is `sent` or `in-progress` |
-| `Due` | The date the party committed to, `YYYY-MM-DD`. Empty: `REVIEW_DUE_DAYS` in `PROJECT_CONFIG.md` sets it from `Sent on` |
+| `Due` | The date the party committed to, or by which it must be sent, `YYYY-MM-DD`; it counts even before `Sent on` is set. Empty: `REVIEW_DUE_DAYS` in `PROJECT_CONFIG.md` sets it from `Sent on` |
 | `Link` | Optional: the issue, ticket or mail thread |
 
 ## State Vocabulary

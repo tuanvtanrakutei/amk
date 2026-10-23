@@ -191,7 +191,7 @@ Optional: the value below is a working default. `review_queue.py` reads it.
 
 | Key | Value | Notes |
 |---|---|---|
-| `REVIEW_DUE_DAYS` | `erratum=5, decision=3, plan approval=5, test sign-off=5, review=5, issue=5, external=10` | Days a person has, per review-queue kind, counted from the date the source records (an erratum's `created_at`, a dependency's `Sent on`, a pending answer's `Asked on`, an issue row's `Date`). A `Due` date in the source overrides it. An item whose source has no date gets no due date. A kind left out takes the default shown here; `n/a` turns the defaults off, leaving only explicit `Due` dates |
+| `REVIEW_DUE_DAYS` | `erratum=5, decision=3, plan approval=5, test sign-off=5, review=5, issue=5, external=10` | Days a person has, per review-queue kind, counted from the date the source records (an erratum's `created_at`, a dependency's `Sent on`, a pending answer's `Asked on`, an issue row's `Date`). A `Due` date in the source overrides it, and stands even without a start date. Without either, an item gets no due date. A kind left out takes the default shown here; `n/a` turns the defaults off, leaving only explicit `Due` dates |
 
 ## Validation Checklist
 

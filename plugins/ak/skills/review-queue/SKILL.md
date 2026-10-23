@@ -67,7 +67,9 @@ An item has a `start` only when its source records a date: an erratum's `created
 dependency's `Sent on`, a pending answer's `Asked on`, an issue row's `Date`. Its `due` is the
 source's own `Due` (a column, or an erratum's `due` field), else `start` plus the kind's days
 in `REVIEW_DUE_DAYS` (`docs/PROJECT_CONFIG.md`, e.g. `erratum=5, decision=3, external=10`; a
-kind left out takes the default, `n/a` turns the defaults off). No start, no due. The JSON
+kind left out takes the default, `n/a` turns the defaults off). A source's own `Due` stands on
+its own: a `to-send` row with a `Due` is overdue after it, with no start date. A default
+deadline needs a start; with neither, there is no due. The JSON
 carries only the two dates; the page's Status column says `overdue` or `due YYYY-MM-DD`,
 counted as of `--as-of`.
 
