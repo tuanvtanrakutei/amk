@@ -169,6 +169,61 @@ def test_the_layer_checks_do_not_fail_a_run(tmp_path: Path) -> None:
     assert base.run(tmp_path, "--group", "readability") == 0
 
 
+# --- evidence_links ----------------------------------------------------------------
+
+LINKED = """## A
+
+The import empties the table [A99-P1-CODE-004](#ev-a99-p1-code-004).
+
+| ID | Observation | Evidence |
+|---|---|---|
+| OB-01 | The batch is kept | [A99-P5-DATA-002](#ev-a99-p5-data-002) |
+
+## Evidence Register
+
+| ID | Status | Class | Claim kind | Source | Confidence |
+|---|---|---|---|---|---:|
+| <a id="ev-a99-p1-code-004"></a>A99-P1-CODE-004 | EXTRACTED | CODE | BEHAVIOUR | module | 1.0 |
+| <a id="ev-a99-p5-data-002"></a>A99-P5-DATA-002 | EXTRACTED | SAMPLE_DATA | FORMAT | sample | 1.0 |
+"""
+
+
+def test_the_anchor_is_the_id_in_lower_case_after_ev() -> None:
+    assert checker.evidence_anchor("A99-P1-TABLE_INVENTORY-004") == "ev-a99-p1-table_inventory-004"
+
+
+def test_citations_that_link_to_their_register_rows_pass() -> None:
+    result = readability(LINKED)["evidence_links"]
+    assert result["status"] == "PASS" and result["detail"].startswith("2 citation(s)")
+
+
+def test_an_unlinked_citation_warns_in_prose_and_in_a_table() -> None:
+    prose_only = LINKED.replace("[A99-P1-CODE-004](#ev-a99-p1-code-004)", "[A99-P1-CODE-004]")
+    result = readability(prose_only)["evidence_links"]
+    assert result["status"] == "WARN" and "A99-P1-CODE-004" in result["detail"]
+    in_table = LINKED.replace("[A99-P5-DATA-002](#ev-a99-p5-data-002)", "A99-P5-DATA-002")
+    assert "A99-P5-DATA-002" in readability(in_table)["evidence_links"]["detail"]
+
+
+def test_a_link_to_an_anchor_the_document_lacks_warns() -> None:
+    no_row = LINKED.replace('<a id="ev-a99-p5-data-002"></a>', "")
+    result = readability(no_row)["evidence_links"]
+    assert result["status"] == "WARN" and "A99-P5-DATA-002 -> #ev-a99-p5-data-002" in result["detail"]
+    wrong = LINKED.replace("(#ev-a99-p1-code-004)", "(#ev-a99-p1-code-005)")
+    assert readability(wrong)["evidence_links"]["status"] == "WARN"
+
+
+def test_item_codes_and_the_register_itself_are_not_asked_for_links() -> None:
+    body = LINKED.replace("The import empties the table", "The import empties the table (RA-04, D-EXPORT-NAME)")
+    assert readability(body)["evidence_links"]["status"] == "PASS"
+    listing = "## A\n\n| <a id=\"ev-a99-p1-code-004\"></a>A99-P1-CODE-004 | listed |\n"
+    assert readability(listing)["evidence_links"]["status"] == "PASS"
+
+
+def test_a_question_cleaned_for_the_list_loses_the_whole_link() -> None:
+    assert da._clean("Who prints it? [A99-P2-UI-001](#ev-a99-p2-ui-001)") == "Who prints it?"
+
+
 # --- decisions_agree ---------------------------------------------------------------
 
 RISKS = """## 6. Risks
@@ -258,7 +313,8 @@ def test_without_the_evidence_register_the_check_does_not_run() -> None:
 def test_every_template_declares_its_reader_and_keeps_the_must_not_list(phase: int) -> None:
     results = {r["check"]: r for r in checker.readability_checks(
         phase, template(phase), Path(f"A99_Phase{phase}_X_EN.md"))}
-    for name in ("audience_declared", "must_not_list_size", "citation_density", "no_decision_history"):
+    for name in ("audience_declared", "must_not_list_size", "citation_density", "no_decision_history",
+                 "evidence_links"):
         assert results[name]["status"] == "PASS", (phase, name, results[name])
     text = template(phase)
     assert text.index("What you must not get wrong:") < text.index("## Naming Convention")
@@ -274,6 +330,23 @@ def test_every_template_carries_the_citation_rules_and_one_decided_table(phase: 
     assert text.count("## Decided for the replacement") == 1
     headers = [tuple(t.header) for t in dq.tables(text)]
     assert ("Item", "Decision", "Effect on this phase") in headers
+
+
+@pytest.mark.parametrize("phase", sorted(TEMPLATES))
+def test_every_template_states_the_writing_order_and_keeps_the_diagram_floor(phase: int) -> None:
+    text = template(phase)
+    assert "Writing order: prose first, then tables, then diagrams." in text
+    assert "a diagram shows a mechanism" in text
+    assert "One required diagram per phase is a floor" in text
+    assert "write prose only for what neither can hold" not in text
+
+
+@pytest.mark.parametrize("phase", sorted(TEMPLATES))
+def test_every_template_links_its_citations_to_anchored_register_rows(phase: int) -> None:
+    text = template(phase)
+    assert "`[A99-P1-CODE-004](#ev-a99-p1-code-004)`" in text
+    register = text[text.index("## Evidence Register"):]
+    assert '`<a id="ev-a99-p1-code-004"></a>A99-P1-CODE-004`' in register
 
 
 @pytest.mark.parametrize("phase", sorted(TEMPLATES))

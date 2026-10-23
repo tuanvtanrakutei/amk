@@ -216,6 +216,52 @@ def test_the_same_registers_give_the_same_bytes_whatever_their_order() -> None:
     assert "2026" not in one.split("## ")[0]
 
 
+RECORD = """# A99 - decisions on the print layout
+
+| Item | About | Decision | What that means |
+|---|---|---|---|
+| D-PRINT-COLS | The print has no column for the route. The legacy print ran out of width. | Add a route column | The print gains a route column after the store code; nothing else moves. |
+| `D-LABEL-A` | The export file name. | Keep `export_date` | The file is named by its export date. |
+| D-ROW-ORDER | Row order. | preserve: rows stay in entry order | |
+
+| Item | About | Decision |
+|---|---|---|
+| D-NO-MEANING | A field nobody fills. | Drop the field. It is never read. |
+"""
+
+
+def test_the_record_row_says_what_was_decided_not_the_finding(tmp_path: Path) -> None:
+    """The statement was the finding; the record's row holds the decision."""
+    source = "input/target-intent/A99_Decisions_2026-10-05.md"
+    record = tmp_path / source
+    record.parent.mkdir(parents=True)
+    record.write_text(RECORD, encoding="utf-8")
+    evidence = [
+        target(1, "The print has no column for the route.", row="D-PRINT-COLS", source=source),
+        target(2, "The file name is not specified.", question="D-LABEL-A", source=source),
+        target(3, "Rows have no order.", row="D-ROW-ORDER", source=source),
+        target(4, "The field is never read.", row="D-NO-MEANING", source=source),
+        target(5, "No record row for this one.", row="D-MISSING", source=source),
+        target(6, "fix: the record file is gone.", row="D-GONE", source="input/target-intent/absent.md"),
+    ]
+    built = page_contract.build([], evidence, [])
+    text = page_contract.render(built, "A99", records=page_contract.record_rows(tmp_path, evidence))
+    rows = {line.split(" | ")[0][2:]: line.split(" | ") for line in text.splitlines()
+            if line.startswith("| D-")}
+    assert rows["D-PRINT-COLS"][1] == "The print has no column for the route."
+    assert rows["D-PRINT-COLS"][2:4] == ["Add a route column",
+                                         "The print gains a route column after the store code; nothing else moves."]
+    assert rows["D-LABEL-A"][2:4] == ["Keep `export_date`", "The file is named by its export date."]
+    # A leading disposition word is the decision; an empty `What that means` falls back to the cell.
+    assert rows["D-ROW-ORDER"][2:4] == ["preserve", "rows stay in entry order"]
+    # No `What that means` column: the Decision cell says what is done.
+    assert rows["D-NO-MEANING"][2:4] == ["Drop the field.", "Drop the field."]
+    # The row or the file cannot be read: the statement, as before.
+    assert rows["D-MISSING"][2:4] == ["decided", "No record row for this one."]
+    assert rows["D-GONE"][2:4] == ["fix", "the record file is gone."]
+    assert page_contract.render(built, "A99", records=page_contract.record_rows(tmp_path, evidence)) == text
+
+
 def test_the_about_of_a_row_code_is_read_from_its_record(tmp_path: Path) -> None:
     record = tmp_path / "input" / "target-intent" / "A99_Decisions_2026-10-01.md"
     record.parent.mkdir(parents=True)

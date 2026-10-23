@@ -26,8 +26,12 @@ What is decided, and what is in force:
   (`D-LABEL-B` replacing `D-LABEL-A`) would stay in force beside its replacement.
 - "Later" is `created_at`, then the evidence id's number.
 
-Nothing here reads a file but the decision records' own tables, for the `About` cell of a
-row code no register titles. No date is written, so the same registers give the same page.
+What a row says is read from the decision record the evidence cites (`source_path`), in the
+row its `row X` or `attribution.question_id` names: the `Decision` cell, and `What that means`
+when the record has that column. An evidence statement is often the finding the decision
+answers rather than the decision, and a page that printed "decided" beside it said nothing.
+The statement is the fallback, used only when the record or its row cannot be read. Nothing
+else reads a file. No date is written, so the same registers give the same page.
 """
 from __future__ import annotations
 
@@ -247,18 +251,71 @@ def decision_word(item: dict[str, Any]) -> str:
 
 
 def what_it_does(item: dict[str, Any]) -> str:
-    """One sentence: what the replacement does. The decider's note follows when there is one."""
+    """One sentence: what the replacement does, read from the item's statement."""
     statement = _flat(item.get("statement"))
     match = dq.DISPOSITION_STATEMENT.match(statement)
     if match:
         statement = statement[match.end():].strip()
-    statement = DECIDED_ON.sub("", LEADING_WORD.sub("", MITIGATION_PREFIX.sub("", statement))).strip()
+    return one_sentence(statement)
+
+
+def one_sentence(text: str) -> str:
+    """The first sentence of a decision's text; the decider's note follows when there is one."""
+    statement = DECIDED_ON.sub("", LEADING_WORD.sub("", MITIGATION_PREFIX.sub("", _flat(text)))).strip()
     note = ""
     if NOTE_PREFIX in statement:
         statement, _, note = statement.partition(NOTE_PREFIX)
         note = f" Note: {shorten(note.strip(), 160)}"
     sentence = shorten(statement.strip(), DOES_LIMIT)
     return (sentence + note).strip() or NONE
+
+
+def _code_cell(cell: str) -> str:
+    return cell.strip().strip("`*").strip()
+
+
+def record_rows(root: Path, evidence: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, str]]:
+    """(source_path, item code) -> that row of the record's table, by lower-cased header.
+
+    A decision record states the decision in its own table: an `Item` column (or the first
+    column) holding the code, a `Decision` column and usually a `What that means` column.
+    The evidence item's statement is often the finding the decision answers, so the record's
+    row says what was decided better than the statement does. Only the record an item cites
+    in `source_path` is read for it: two records can hold a row of the same code.
+    """
+    rows: dict[tuple[str, str], dict[str, str]] = {}
+    paths = sorted({str(i.get("source_path") or "") for i in evidence
+                    if isinstance(i, dict) and i.get("evidence_class") == TARGET_INTENT})
+    for relative in paths:
+        if not relative:
+            continue
+        try:
+            text = (root / relative).read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for table in dq.tables(text):
+            header = [h.strip().casefold() for h in table.header]
+            if "decision" not in header:
+                continue
+            key = header.index("item") if "item" in header else 0
+            for row in table.rows:
+                if not row.wellformed or not row.cells[key].strip():
+                    continue
+                rows.setdefault((relative, _code_cell(row.cells[key])), dict(zip(header, row.cells)))
+    return rows
+
+
+def record_row(decision: Decision, records: dict[tuple[str, str], dict[str, str]]) -> dict[str, str] | None:
+    """The record row a decision's evidence points at: its own code, then `row X`, then
+    `attribution.question_id` - a register item closed by a record row is decided by that row."""
+    path = str(decision.item.get("source_path") or "")
+    attribution = decision.item.get("attribution") if isinstance(decision.item.get("attribution"), dict) else {}
+    row = ROW_CODE.match(str(decision.item.get("source_location") or ""))
+    for code in (decision.code, row.group(1).strip("`*").rstrip(".:") if row else "",
+                 str((attribution or {}).get("question_id") or "").strip()):
+        if code and (path, code) in records:
+            return records[(path, code)]
+    return None
 
 
 def record_abouts(root: Path, evidence: list[dict[str, Any]]) -> dict[str, str]:
@@ -290,8 +347,25 @@ def record_abouts(root: Path, evidence: list[dict[str, Any]]) -> dict[str, str]:
     return abouts
 
 
+def decided(decision: Decision, row: dict[str, str]) -> tuple[str, str]:
+    """(Decision, What the replacement does) for one row of the page.
+
+    From the record row when the evidence points at one: its `Decision` cell, shortened like
+    `About`, and its `What that means` cell, or the Decision cell when there is none. From the
+    evidence statement only when the record or its row cannot be read.
+    """
+    cell = _flat(row.get("decision"))
+    if not cell:
+        return decision_word(decision.item), what_it_does(decision.item)
+    word = LEADING_WORD.match(cell)
+    short = word.group(1).lower() if word else shorten(cell, ABOUT_LIMIT)
+    means = _flat(row.get("what that means")) or cell
+    return short or UNDECIDED_WORD, one_sentence(means)
+
+
 def render(page: Page, app: str, *, titles: dict[str, str] | None = None,
-           abouts: dict[str, str] | None = None, sources: str = "the registers") -> str:
+           abouts: dict[str, str] | None = None, sources: str = "the registers",
+           records: dict[tuple[str, str], dict[str, str]] | None = None) -> str:
     titles, abouts = titles or {}, abouts or {}
     app = app or "App"
     out = [
@@ -318,13 +392,13 @@ def render(page: Page, app: str, *, titles: dict[str, str] | None = None,
                 "| Item code | About | Decision | What the replacement does | Evidence id | Replaces |",
                 "|---|---|---|---|---|---|"]
         for decision in groups[group]:
-            about = titles.get(decision.code) or abouts.get(decision.code) or ""
+            row = record_row(decision, records or {}) or {}
+            about = titles.get(decision.code) or row.get("about") or abouts.get(decision.code) or ""
             replaced = page.replaces.get((decision.code, decision.evidence_id)) or []
             out.append("| " + " | ".join(da._cell(c) for c in (
                 decision.code, shorten(about, ABOUT_LIMIT) or NONE,
-                decision_word(decision.item),
-                what_it_does(decision.item), decision.evidence_id,
-                ", ".join(replaced) or NONE)) + " |")
+                *decided(decision, row),
+                decision.evidence_id, ", ".join(replaced) or NONE)) + " |")
         out.append("")
 
     if page.superseded or page.withdrawn or page.unplaced:

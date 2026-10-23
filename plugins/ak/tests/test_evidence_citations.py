@@ -147,6 +147,19 @@ def test_the_register_is_found_by_shape_not_by_an_english_heading(tmp_path: Path
         sorted(outputs.glob("*.md")))
 
 
+def test_a_register_row_that_opens_with_its_anchor_is_still_a_listing(tmp_path: Path) -> None:
+    """A110: each row opens with the anchor its citations link to."""
+    linked = (REGISTER_DOC
+              .replace("[A99-P1-SCHEMA-001]", "[A99-P1-SCHEMA-001](#ev-a99-p1-schema-001)")
+              .replace("| A99-P1-SCHEMA-001 |", '| <a id="ev-a99-p1-schema-001"></a>A99-P1-SCHEMA-001 |')
+              .replace("| A99-P1-DOCUMENT-001 |",
+                       '| <a id="ev-a99-p1-document-001"></a>A99-P1-DOCUMENT-001 |'))
+    outputs = write_outputs(tmp_path, [item("A99-P1-SCHEMA-001"), item("A99-P1-DOCUMENT-001")], linked)
+    cited = checker.cited_in_documents(sorted(outputs.glob("*.md")))
+    assert cited["A99-P1-SCHEMA-001"] == ["A99_Phase1_EN.md"], "a link is a citation"
+    assert "A99-P1-DOCUMENT-001" not in cited, "an anchored register row is a listing"
+
+
 # --- the per-phase line counts the register, not the document -----------------------
 
 def test_cross_phase_citations_are_surfaced(tmp_path: Path) -> None:

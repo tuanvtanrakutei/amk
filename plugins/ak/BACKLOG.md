@@ -66,13 +66,39 @@ Changed (approved framework: two layers, every artefact declares its reader):
   an earlier decision; a closed row's opening state is allowed). Apparatus group, WARN:
   `decisions_agree`, A108's first slice (below). The summary line now says `N warning(s)`.
 
+Then, in the same change, on the project lead's decisions:
+
+- **What a decision-record row says is read from the record.** The trial page showed most
+  record rows as `decided` beside a statement that repeated the finding the decision answered.
+  `record_rows` reads the row the evidence points at (`row X` or `attribution.question_id`) in
+  the table of the record its `source_path` names: Decision from the `Decision` column (a
+  leading `fix:` / `preserve:` word, else the cell shortened like About), "What the replacement
+  does" from `What that means`, else from the Decision cell. The statement is the fallback only
+  when the file or the row cannot be read.
+- **The citation threshold stays at one evidence id per 40 words** (decided, not 30).
+- **Writing order: prose first, then tables, then diagrams.** Prose carries the argument, a
+  table holds a set, a diagram shows a mechanism; the one-diagram floor stands. Each phase
+  template's instruction comment and `references/technical-writing.md` §1 say so; the old
+  "write prose only for what neither can hold" line is gone.
+- **Every cited evidence id is a link.** A citation reads `[A99-P1-CODE-004](#ev-a99-p1-code-004)`
+  and its Evidence Register row opens with `<a id="ev-a99-p1-code-004"></a>A99-P1-CODE-004`: the
+  id in lower case after `ev-`. Templates 3-5 gained the Evidence Register section the published
+  documents already carried. New readability WARN `evidence_links`: an evidence id cited in prose
+  or a table, outside the register, that is not a link to an anchor in the same document, and a
+  link whose anchor is missing. `validate_evidence_citations.REGISTER_ROW` accepts the anchor
+  prefix, and the question list's citation cleaner drops a whole link.
+
 Not yet done:
 
 - No published phase has been rewritten to the new shape; the checks only warn about the old one.
+  A document's evidence ids are not turned into links by any command; an agent rewriting a phase
+  writes them.
 - `{APP}_Decisions.md` is not compared with the phases' `Decided for the replacement` tables:
   nothing checks that a phase lists every decided item that changes it.
-- "What the replacement does" is the first sentence of the TARGET_INTENT statement. A record
-  whose statement is a paragraph is cut there, and the evidence id is the way to the rest.
+- A question, unknown or assumption closed by a record with no table row (a whole-record
+  closure, or an answers sheet) still reads `decided`, with the first sentence of its statement.
+- The writing order is guidance; no check measures it. `prose_per_diagram` still warns on a
+  section with much prose and no diagram.
 - The layer checks measure EN documents only, like the rest of the readability group.
 - `must_not_list_size` counts items; it does not check that each reads fact, replacement, section.
 

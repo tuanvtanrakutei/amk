@@ -274,7 +274,8 @@ def decisions_page(space: workspace_contract.Workspace, output: Path, register_f
     if errata is not None:
         sources += [p.name for p in dr._find(output, "*_Errata.json")]
     text = dpage.render(page, app, titles=titles, abouts=dpage.record_abouts(space.root, evidence),
-                        sources=", ".join(f"`{s}`" for s in sources))
+                        sources=", ".join(f"`{s}`" for s in sources),
+                        records=dpage.record_rows(space.root, evidence))
     return output / f"{app}_Decisions.md", text, page
 
 

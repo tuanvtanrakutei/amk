@@ -159,8 +159,11 @@ output_layers:
   rule: >-
     A person-layer document cites a decision by its item code (RA-04, Q12, a decision-record
     row code), one code per claim at the end of the sentence, and tells no decision history;
-    evidence ids stay for facts about the legacy system. A list longer than about ten rows
-    belongs in a catalogue, and the phase points to it.
+    evidence ids stay for facts about the legacy system, and each one cited is a link,
+    `[ID](#ev-<id in lower case>)`, to the Evidence Register row that opens with
+    `<a id="ev-<id in lower case>"></a>ID` in the same document. A list longer than about ten
+    rows belongs in a catalogue, and the phase points to it. Writing order: prose first,
+    then tables, then diagrams; the one-diagram floor stands.
 
 # The machine-readable registers live in `output/registers/`. A reader opening output/
 # should meet documents; these four are for tools, and a checker looks in both places.

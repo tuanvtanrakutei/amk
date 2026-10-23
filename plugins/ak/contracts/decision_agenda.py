@@ -386,7 +386,8 @@ def _party_heading(name: str, parties: dq.Parties | None) -> str:
 # What a phase document puts in a question that the person asked has no use for: the
 # evidence ids it cites (listed under "Evidence already read") and the bold marker saying
 # which correction raised it ("Raised by E-11." / "Dựng lên từ E-11.").
-CITATION = re.compile(r"\s*\[[A-Z][A-Z0-9_]{1,15}-P[1-6]-[A-Z][A-Z0-9_]*-\d{3,}\]")
+# A citation may be a link to its register row (A110): `[ID](#ev-id)` goes as a whole.
+CITATION = re.compile(r"\s*\[[A-Z][A-Z0-9_]{1,15}-P[1-6]-[A-Z][A-Z0-9_]*-\d{3,}\](?:\(#[^)\s]*\))?")
 ORIGIN_MARKER = re.compile(r"^\*\*[^*]*\bE-\d{2}\b[^*]*\*\*\s*")
 
 

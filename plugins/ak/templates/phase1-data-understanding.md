@@ -24,9 +24,20 @@ Audience: person
         of replaced ids. Mark a corrected sentence once with its `(E-nn)`. The history is
         on the errata page and in `{{APP_ID}}_Decisions.md`.
      4. A list longer than about 10 rows belongs in a catalogue; this document points to it.
+     5. Every evidence id you cite is a link to its row in this document's Evidence
+        Register: `[A99-P1-CODE-004](#ev-a99-p1-code-004)`. The anchor is the id in lower
+        case after `ev-`, and the register row opens with it (see the Evidence Register).
+        Cite an id from another phase the same way, and list it in this register too.
 
-     The conformance gate's readability group measures 1 to 3 (`citation_density`,
-     `no_decision_history`) and warns; it never fails a run.
+     Writing order: prose first, then tables, then diagrams. Readable prose carries the
+     argument - what the system does, why it matters, what the replacement must not get
+     wrong. A table holds a set of parallel items the prose refers to. A diagram shows a
+     mechanism the prose names: an order of steps, a cycle, a fan-out, a failure branch.
+     This is the order of reading, not a ranking: the one-diagram floor below stands, and
+     a mechanism still gets its diagram.
+
+     The conformance gate's readability group measures 1, 3 and 5 (`citation_density`,
+     `no_decision_history`, `evidence_links`) and warns; it never fails a run.
 -->
 
 <!--
@@ -66,9 +77,10 @@ What you must not get wrong:
      the fact that re-running the morning import destroys the quantities staff typed the
      night before was in the document, four sections deep, in prose.
 
-     Diagram a mechanism; tabulate a set; write prose only for what neither can hold.
-     `references/technical-writing.md` holds the rules: which diagram for which shape,
-     and how to write the prose that remains.
+     Write the prose first, then the tables, then the diagrams (the writing order above):
+     prose carries the argument, a table holds a set, a diagram shows a mechanism.
+     `references/technical-writing.md` holds the rules: how to write the prose, and which
+     diagram for which shape.
      One required diagram per phase is a floor, not a budget. Reach for one whenever the
      thing being described has a shape: an order of steps, a cycle, a lifecycle with a
      failure branch, a fan-out from one object to many, or three artefacts that should
@@ -416,7 +428,10 @@ erDiagram
 ## Evidence Register
 
 <!-- Every claim above resolves here. Status is EXTRACTED, INFERRED or AMBIGUOUS;
-     an INFERRED claim carries its confidence and never loses the label. -->
+     an INFERRED claim carries its confidence and never loses the label.
+     Each row opens with its anchor, then the id: `<a id="ev-a99-p1-code-004"></a>A99-P1-CODE-004`
+     - the id in lower case after `ev-`. Every citation above links to it, and every id
+     cited above has a row here, an id from another phase included (`evidence_links`). -->
 
 | Claim | Status | Class | Source | Location | Confidence |
 |---|---|---|---|---|---:|

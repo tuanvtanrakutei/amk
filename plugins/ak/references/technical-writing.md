@@ -39,6 +39,11 @@ document:
 4. A list longer than about 10 rows belongs in a catalogue. The phase points to it. Phase 2
    gives each screen its purpose, who uses it, what differs and its risks, in about 150
    words, and points to the screen catalogue and the to-be for fields and controls.
+5. Every evidence id you cite is a link to its row in the same document's Evidence
+   Register: `[A99-P1-CODE-004](#ev-a99-p1-code-004)`. Each register row opens with its
+   anchor, `<a id="ev-a99-p1-code-004"></a>A99-P1-CODE-004`: the id in lower case after
+   `ev-`. An id from another phase gets a row in this register too. Item codes are not
+   evidence ids and take no link.
 
 Open with "What you must not get wrong": at most seven items, each reading legacy fact,
 then what the replacement does (item code), then the section. Spell out what the decisions
@@ -47,18 +52,21 @@ phase`), and give each risk row a `Decision` column with its disposition word an
 carried-forward table is compact: `ID | From phase | State | Closed by`, with `open` or
 `closed` and the item code that closed it, never the answer's text.
 
-## 1. Choose the form before you write
+## 1. Write in this order: prose, then tables, then diagrams
 
-Use the first form that can hold the claim:
+The project lead set the writing order for person-layer documents (A110):
 
-1. A diagram, when the thing has a shape.
-2. A table, when the thing is a set of parallel items.
-3. Prose, only for what neither can hold: a cause, an argument, an exception, a
-   consequence.
+1. Prose first. Readable prose carries the argument: what the system does, why it matters,
+   and what the replacement must not get wrong. A reader who reads only the prose of a
+   section must come away with its claim.
+2. Then a table, for a set of parallel items that the prose refers to.
+3. Then a diagram, for a mechanism that the prose names: an order of steps, a cycle, a
+   lifecycle, a fan-out, or two sources that disagree.
 
-A section that describes a picture in prose is a diagram that was not drawn. A phase
-document with more diagrams is often the shorter one, because each diagram removes a
-paragraph.
+The order is the order of reading, not a ranking, and it does not mean dropping diagrams.
+The one-diagram floor per phase stands, and a mechanism still gets its diagram. What the
+order rules out is a section that is a diagram and a table with no sentence saying what
+they show, and a paragraph that describes a picture nobody drew.
 
 ### Which diagram
 
@@ -143,6 +151,8 @@ revise prose.
    `must_not_list_size`: cut the list to seven. `citation_density`: more than one evidence
    id per 40 words of prose; replace a decision's evidence id with its item code, and move
    the rest to the tables. `no_decision_history`: delete the history, keep the `(E-nn)`.
+   `evidence_links`: turn each bare evidence id into `[ID](#ev-id)`, and give every cited id
+   a register row that opens with `<a id="ev-id"></a>`.
 6. Run `$ak decisions` after each decision, then answer `decisions_agree`: a risk row that
    does not name its recorded disposition, or a carried-forward row still `open` for an item
    the register has closed.

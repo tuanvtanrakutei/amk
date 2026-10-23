@@ -381,6 +381,16 @@ LONG_SENTENCES_PER_DOCUMENT = 10
 # Tables, code blocks and the Evidence Register are where ids belong and are not counted;
 # an item code such as `RA-04` is not an evidence id and is not counted either.
 CITATION_WORDS_PER_ID = 40
+# Every evidence id a person-layer document cites is a link to its row in the same
+# document's Evidence Register, so a reader follows it with one click instead of a search.
+# The anchor is the id in lower case after `ev-`, and the register row opens with it.
+EVIDENCE_ANCHOR = re.compile(r'<a\s+id="(ev-[a-z0-9_-]+)"\s*>\s*</a>')
+EVIDENCE_LINK = re.compile(r"\[([A-Z][A-Z0-9_-]{1,15}-P[1-6]-[A-Z][A-Z0-9_]*-\d{3,})\]\(#([^)\s]+)\)")
+
+
+def evidence_anchor(evidence_id: str) -> str:
+    """`A99-P1-CODE-004` -> `ev-a99-p1-code-004`."""
+    return "ev-" + evidence_id.lower()
 MUST_NOT_LIMIT = 7
 AUDIENCE_LINE = re.compile(r"(?im)^[ \t]*[*_]*Audience[*_]*\s*:\s*[*_]*\s*(person|bridge|record)\b")
 MUST_NOT_HEAD = re.compile(r"(?i)^(?:#{1,6}\s*)?[*_]*what you must not get wrong[*_:]*\s*$")
@@ -496,6 +506,30 @@ def history_mentions(text: str, closed: tuple[str, ...]) -> list[str]:
     return found
 
 
+def unlinked_evidence(text: str) -> tuple[list[str], list[str], int]:
+    """(ids cited without a link, links whose anchor is not in this document, links that work).
+
+    Read outside comments, fences and the Evidence Register, in prose and in tables alike.
+    A register row printed elsewhere (`| <a id=...></a>ID |`) is a listing, not a citation.
+    An item code such as `RA-04` is not an evidence id and is never asked for a link.
+    """
+    anchors = set(EVIDENCE_ANCHOR.findall(COMMENT.sub("", text)))
+    body = FENCE.sub("", COMMENT.sub("", without_evidence_register(text)))
+    body = re.sub(EVIDENCE_ANCHOR.pattern + r"\s*(?:" + CITATION.pattern + r")?", " ", body)
+    unlinked: list[str] = []
+    broken: list[str] = []
+    working = 0
+    for line in body.splitlines():
+        for match in EVIDENCE_LINK.finditer(line):
+            ident, target = match.groups()
+            if target == evidence_anchor(ident) and target in anchors:
+                working += 1
+            else:
+                broken.append(f"{ident} -> #{target}")
+        unlinked += CITATION.findall(EVIDENCE_LINK.sub(" ", line))
+    return unlinked, broken, working
+
+
 def readability_checks(phase: int, text: str, path: Path | None = None) -> list[dict[str, Any]]:
     def result(name: str, warn: bool, detail: str) -> dict[str, Any]:
         return {"check": name, "group": "readability",
@@ -575,6 +609,17 @@ def readability_checks(phase: int, text: str, path: Path | None = None) -> list[
         f"{len(history)} mention(s) of how a decision was reached; mark a corrected sentence "
         f"once with its E-nn and leave the history to the errata page and the decisions "
         f"page: {history[:3]}" if history else "none",
+    ))
+
+    unlinked, broken, working = unlinked_evidence(text)
+    results.append(result(
+        "evidence_links", bool(unlinked or broken),
+        (f"{len(unlinked)} evidence id(s) cited without a link, first: {sorted(set(unlinked))[:4]}; "
+         if unlinked else "")
+        + (f"{len(broken)} link(s) to an anchor this document does not have, first: {broken[:3]}; "
+           if broken else "")
+        + "write `[ID](#ev-id)` and open the register row with `<a id=\"ev-id\"></a>ID`"
+        if unlinked or broken else f"{working} citation(s), each a link to its register row",
     ))
     return results
 
