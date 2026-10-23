@@ -130,6 +130,7 @@ offer to run the missing step — when its input is not there yet.
 | Skill | Or just say | Does |
 | :--- | :--- | :--- |
 | `/ak:screen-status` | "where do we stand" | Every screen, its status, and the **next command to paste**. Writes nothing. |
+| `/ak:review-queue` | "what is waiting on me" | One page of what waits on a person, highest risk first, each row with the command that records the answer. Decides nothing. |
 | `/ak:dev-stack` | "start the dev stack", "is the backend up" | Backend, frontend and a local database up, migrated and checked; `status` and `down` too |
 | `/ak:modernize-screen` | "implement screen X", "continue screen X", "implement the next screen" | The full pipeline for one screen, or several in parallel |
 | `/ak:plan-screen` | "just plan screen X" | Stages 1–2: scope and screen plan, no code |

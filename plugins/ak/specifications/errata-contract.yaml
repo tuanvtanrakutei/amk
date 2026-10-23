@@ -58,6 +58,11 @@ entry:
       Evidence items whose statements are now wrong. They are not deleted - they
       keep their identifiers and gain a note pointing at this entry.
     severity: "How much a reader who acted on the wrong claim would have been misled."
+    acknowledged_by: >
+      Who confirmed the correction holds in every affected passage. Until it is set the
+      entry waits on a person, and the modernize repo's review queue lists it
+      (`modernize/scripts/review_queue.py`, A111).
+    acknowledged_on: "The date that person confirmed it, YYYY-MM-DD."
 
 # ---------------------------------------------------------------------------
 # Why the claim was wrong. Recording this is what stops the class recurring;

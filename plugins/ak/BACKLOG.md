@@ -12,6 +12,72 @@ that it should now work.
 
 ## Open
 
+### A111 - nothing told an owner what waited on them
+
+**Found 2026-10-23, when the project lead decided that agents maintain the phases and the
+modernize documents, and people only review and decide.** What waits on a person was kept in
+six places, each in its own shape: open items in the decision queue, errata nobody had
+confirmed, a pending answer in a coding record, an undecided gap-matrix row, a manual test
+with no name in `Verified by`, a final acceptance left `pending`, and issue rows that need a
+decision. A blocked track in the registry could also carry no stated cause. No page joined
+them, so an owner had to open every folder to learn what was theirs. The kit had no
+acknowledgement for an erratum either, so a correction stayed "new" forever or nowhere.
+
+Changed:
+
+- **`modernize/scripts/review_queue.py --repo <modernize repo>`** writes `docs/Review_Queue.md`
+  (`Audience: person`) and `docs/review_queue.json` (for agents and the pipeline). The page
+  opens with a count line ("N items wait on a person: H high, M medium, L low."), then one table
+  sorted by risk, kind and screen; when nothing waits, one line says so. Each item has `kind`
+  (decision, erratum, plan approval, test sign-off, review, issue), `risk`, `screens`, `ask` (one
+  question), `evidence`, `how_to_record` (the exact command or edit that closes it), `source`
+  and `status`. No date, so the same state gives the same bytes; a file it did not write is
+  refused unless `--force`. `--dry-run` prints the count line and writes nothing.
+- **Workspace lookup**: `--workspace`, else `AK_RUN_DIR` resolved against the repository root
+  (as `validate_docs.py` does), else the repository's parent when it holds `manifest.yaml` and
+  `output/` (the layout bootstrap looks for). Registers are read from `output/registers/`,
+  `output/` or the folder itself.
+- **Sources and rules.** Decision queue: items in the buckets blocking, proceeding, waiting and
+  to-record; items with the customer and items settled by policy are counted in a note. Errata:
+  an entry waits until it carries `acknowledged_by` (new optional field, with
+  `acknowledged_on`, in `errata-contract.yaml`); this was chosen over "since the last build",
+  which would drop an entry nobody read. Coding records: 7.1 Pending Answers rows not
+  `answered`. Screen plans: §6 `open` and §5 `open-decision` rows that cite no decision-queue
+  item (a row that cites one is listed through the queue). Test instructions: §4.4 Tier 3 rows
+  with no `Verified by`. Final acceptance: User decision `pending`. Known issues: `open` rows
+  of type `business` or `legacy-bug`, and `traceability` `open (HIGH)`, unless the row points
+  at a queue item; MEDIUM and LOW are confirmed by the Stage 5 reviewer and are not listed.
+  Registry: a `blocked` track only when no other item names the screen.
+- **Risk mapping** (`RISK_RULES`): a queue item is high with no default or a HIGH severity
+  (its own or what it blocks), medium for MEDIUM, low otherwise; a pending answer is high (the
+  track is blocked); an erratum takes its severity, medium without one; plan approval and test
+  sign-off are medium; an acceptance is high unless the recommendation is approve or approve
+  with follow-ups; an issue is high for `open (HIGH)` and a blocked track, else its suffix,
+  medium without one.
+- **Skill `/ak:review-queue`.** A skill of its own rather than a mode of `screen-status`,
+  because `screen-status` promises to write nothing and the queue writes two files. The script
+  sits beside the other modernize scripts and is named like them. `screen-status` quotes the
+  count line from `--dry-run`, which writes nothing.
+
+Not yet done:
+
+- **No due date anywhere.** No source records one, so every item is `waiting`; `overdue` is
+  reserved and never set.
+- **Plan approval as a whole.** A screen plan has no approval field (§3.4 is `draft` or
+  `frozen`, an agent's call), so the queue lists the plan's undecided rows, not "approve this
+  plan".
+- **Pipeline stops are not recorded as state.** A gate's HIGH `examine / defer / cancel`
+  prompt lives in the conversation; only the `traceability` row it leaves is read. The modernize
+  pipeline has no run-state file.
+- **Parity differences** (`differs` in a `screen_parity.py` result) are not listed: whether one
+  is a defect or a difference to accept is first the agent's to examine, and the result file's
+  place is set per project.
+- **Recording is still by hand** for an erratum acknowledgement, a sign-off and an acceptance:
+  each `how_to_record` names the file edit; there is no command.
+- Planned next: **A112**, phases updated by an agent with a change
+  digest that feeds this queue, and **A113**, a generated hand-off that replaces the
+  hand-written Phase 5, with the specifications in `output/specs/`.
+
 ### A110 - phase documents for people became agent records once decisions were applied
 
 **Found 2026-10-22, in an independent review of one application's five phases**, after a round of

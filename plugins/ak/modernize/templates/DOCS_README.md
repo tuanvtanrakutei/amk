@@ -18,6 +18,7 @@ the operational manual, not the introduction.
 | Implement a screen end-to-end | The `modernize-screen` skill, or follow `MASTER_WORKFLOW.md` directly |
 | Run just one stage | The `plan-screen`, `code-screen`, `test-screen`, or `review-screen` skill |
 | Check where a screen stands without starting anything | The `screen-status` skill |
+| See everything that waits on a person: decisions, errata, sign-offs, acceptance | `Review_Queue.md`, written by the `review-queue` skill |
 | See which screens exist and their status | `Screens_Registry.md` |
 | Check open bugs / decisions / Q&A | `Known_Issues.md` |
 | Look up backend coding rules | `{{BACKEND_RULES_DOC}}` |
@@ -152,6 +153,7 @@ by describing the request in plain language.
 | `test-screen` | 4a–4b | a coding record for the track being tested |
 | `review-screen` | 5 | (reviews whatever upstream artifacts exist, and says what's missing) |
 | `screen-status` | none — read-only | nothing; always safe to run |
+| `review-queue` | none — writes `Review_Queue.md` and `review_queue.json` only | a file it did not write in their place |
 
 ### Multiple screens in parallel
 

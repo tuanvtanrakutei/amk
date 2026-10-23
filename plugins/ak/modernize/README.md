@@ -67,6 +67,7 @@ but has not yet been re-verified against a real Codex cache.
 | `test-screen` | `/ak:test-screen` | "Write and run tests for screen {screen}" |
 | `review-screen` | `/ak:review-screen` | "Review screen {screen} against its artifacts" |
 | `screen-status` | `/ak:screen-status` | "Where does screen {screen} stand" |
+| `review-queue` | `/ak:review-queue` | "What is waiting on me" / "refresh the review queue" |
 | `dev-stack` | `/ak:dev-stack` | "Start the dev stack", "is the backend up" |
 
 Example: `/ak:plan-screen OrderEntry` runs Stages 1–2 for the `OrderEntry` screen. What each
@@ -151,6 +152,7 @@ and executes whichever stages each mode calls for.
 | `/ak:test-screen {screen} [--backend-only\|--frontend-only]` | 4a–4b | a coding record for the track being tested |
 | `/ak:review-screen {screen}` | 5 | (reviews whatever upstream artifacts exist, and says what's missing) |
 | `/ak:screen-status {screen\|all}` | none — read-only | nothing; always safe to run |
+| `/ak:review-queue` | none — writes `Review_Queue.md` and `review_queue.json` only | a file it did not write in their place |
 
 ### Multiple screens in parallel
 
@@ -241,6 +243,7 @@ plugins/ak/
 │   ├── test-screen/                ← Stages 4a–4b only, against an already-coded screen
 │   ├── review-screen/              ← Stage 5 only, a verdict against whatever upstream exists
 │   ├── screen-status/              ← read-only, writes nothing
+│   ├── review-queue/               ← one page of what waits on a person
 │   └── dev-stack/                  ← the project's Docker stack, with a local database
 ├── hooks/                          ← a sensor, never an actor (Codex support declared, unconfirmed)
 │   ├── hooks.json
@@ -274,6 +277,7 @@ plugins/ak/
     │   └── group-agent-prompt.md    ← the group agent's standing instructions
     └── scripts/
         ├── validate_docs.py         ← reports documentation defects, never repairs
+        ├── review_queue.py          ← writes the review queue: what waits on a person
         ├── triage_suite.py          ← groups failing tests by cause, runs nothing
         └── scan_phase2_inventory.py ← detects Screens_Registry rows from a Phase 2 doc, never writes them
 ```
