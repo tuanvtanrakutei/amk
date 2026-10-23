@@ -268,6 +268,7 @@ plugins/ak/
     │   ├── Screens_Registry.md
     │   ├── Known_Issues.md
     │   ├── Known_Issues_Archive.md  ← starts empty; Known_Issues.md's Archive Policy fills it
+    │   ├── External_Dependencies.md ← asks of other teams; the review queue lists the open ones
     │   ├── DOCS_README.md           ← becomes the target repo's {{DOCS_DIR}}/README.md
     │   ├── {Screen_plans,Coding_Records}_README.md
     │   ├── {Test_Instruction,Code_Review,Final_Acceptance}_README.md

@@ -2,7 +2,7 @@
 """Write the review queue: everything in a project that waits on a person, on one page (A111).
 
     python3 review_queue.py --repo <modernize repo> [--docs-dir DIR] [--workspace DIR]
-                            [--dry-run] [--force]
+                            [--as-of YYYY-MM-DD] [--dry-run] [--force]
 
 Agents maintain the investigation phases and the modernize documents; people review and
 decide. What waits on a person was spread over six places, and no page said what an owner
@@ -32,16 +32,24 @@ Sources, each read only when it exists:
                        `legacy-bug` (a decision needed) and `traceability` rows `open (HIGH)`,
                        unless the row points at a decision-queue item.
   registry             a `blocked` track in `Screens_Registry.md` that nothing above names.
+  external asks        `External_Dependencies.md` rows not `done`: something asked of another
+                       team or system that a screen waits for (A114).
 
 Risk comes from the source's own severity or blocking flag; `RISK_RULES` below is the mapping.
-No source carries a due date, so every item is `waiting`; `overdue` is reserved.
+
+Due dates (A114): an item has a `start` when its source records one (an erratum's
+`created_at`, a dependency's `Sent on`, a pending answer's `Asked on`, an issue row's `Date`)
+and then a `due`: the source's own `Due` when it has one, else `start` plus the kind's days in
+`REVIEW_DUE_DAYS` (PROJECT_CONFIG.md; `DEFAULT_DUE_DAYS` when the key is absent). No start, no
+due. The JSON carries the two dates only; the page says `overdue` or `due YYYY-MM-DD`, counted
+as of `--as-of` (default today).
 
 The workspace is `--workspace`, else `AK_RUN_DIR` in `PROJECT_CONFIG.md` resolved against the
 repository root, else the repository's parent folder when it is a workspace (`manifest.yaml`
 beside `output/`), which is where bootstrap looks.
 
-No date in either file, so the same state gives the same bytes. Neither file is overwritten
-when this script did not write it, unless `--force`.
+The same state and the same `--as-of` give the same bytes. Neither file is overwritten when
+this script did not write it, unless `--force`.
 
 Exit 0 when written (or with --dry-run), 1 when a file it did not write is in the way, 2 when
 it cannot run.
@@ -54,6 +62,7 @@ import os
 import re
 import sys
 import unicodedata
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -61,8 +70,9 @@ GENERATED_MD = "<!-- generated-by: ak review-queue"
 GENERATED_BY = "ak review-queue"
 PAGE = "Review_Queue.md"
 DATA = "review_queue.json"
+DEPENDENCIES = "External_Dependencies.md"
 
-KINDS = ("decision", "erratum", "plan approval", "test sign-off", "review", "issue")
+KINDS = ("decision", "erratum", "plan approval", "test sign-off", "review", "issue", "external")
 RISKS = ("high", "medium", "low")
 SEVERITY = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}
 
@@ -77,7 +87,17 @@ RISK_RULES = {
     "review": "high when the recommendation is not approve or approve with follow-ups; medium otherwise",
     "issue": "high for `open (HIGH)` and for a blocked track; otherwise the row's severity suffix, "
              "medium when it has none",
+    "external": "high when it blocks a screen in the registry and is still `to-send`, or when it is "
+                "overdue; medium otherwise; `done` rows are not listed",
 }
+
+# Days a person has per kind, counted from the source's start date. `REVIEW_DUE_DAYS` in
+# PROJECT_CONFIG.md overrides each; the template carries the same values.
+DEFAULT_DUE_DAYS = {"erratum": 5, "decision": 3, "plan approval": 5, "test sign-off": 5, "review": 5,
+                    "issue": 5, "external": 10}
+DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+# External_Dependencies.md: the state nobody waits on, and the one nobody has acted on yet.
+DONE, TO_SEND = "done", "to-send"
 
 # Buckets of the decision queue an owner acts on now (decision_agenda.BUCKETS).
 ACTIONABLE = ("blocking", "proceeding", "waiting", "to_record")
@@ -127,6 +147,17 @@ def posix(path: Path, base: Path) -> str:
         return Path(os.path.relpath(path, base)).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def as_date(text: Any) -> date | None:
+    """A `YYYY-MM-DD` date at the start of a value (a timestamp's date part), or None."""
+    match = DATE.match(norm(text))
+    if not match:
+        return None
+    try:
+        return date.fromisoformat(match.group(0))
+    except ValueError:
+        return None
 
 
 def config_value(config: str, key: str) -> str:
@@ -214,6 +245,8 @@ class Project:
         self.notes: list[str] = []
         self.workspace = self._find_workspace(workspace)
         self.screens = self._registry_screens()
+        self.due_days = self._due_days()
+        self.as_of = date.today()
 
     def _find_docs(self) -> Path:
         default = self.repo / "docs"
@@ -242,6 +275,38 @@ class Project:
         self.notes.append("no investigation workspace was found (`AK_RUN_DIR` unset and the repository's "
                           "parent is not one), so no decision or erratum was read")
         return None
+
+    def _due_days(self) -> dict[str, int]:
+        value = config_value(self.config, "REVIEW_DUE_DAYS")
+        if not value or "{{" in value:
+            return dict(DEFAULT_DUE_DAYS)
+        if value.lower().startswith("n/a"):
+            return {}
+        days = dict(DEFAULT_DUE_DAYS)
+        for part in (p.strip() for p in value.split(",")):
+            if not part:
+                continue
+            kind, sep, number = part.partition("=")
+            kind = " ".join(kind.replace("_", " ").split()).casefold()
+            if not sep or kind not in KINDS or not number.strip().isdigit():
+                self.notes.append(f"`REVIEW_DUE_DAYS` entry `{part}` is not `<kind>=<days>` for a kind of "
+                                  "this queue; it was ignored")
+                continue
+            days[kind] = int(number.strip())
+        return days
+
+    def deadline(self, kind: str, start: Any, due: Any = None) -> dict[str, str | None]:
+        """`start` and `due` as ISO dates. No start, no due; the source's own due wins."""
+        begun = as_date(start)
+        if begun is None:
+            return {"start": None, "due": None}
+        until = as_date(due)
+        if until is None and kind in self.due_days:
+            until = begun + timedelta(days=self.due_days[kind])
+        return {"start": begun.isoformat(), "due": until.isoformat() if until else None}
+
+    def overdue(self, item: dict[str, Any]) -> bool:
+        return bool(item.get("due")) and self.as_of > date.fromisoformat(item["due"])
 
     def rel(self, path: Path) -> str:
         return posix(path, self.repo)
@@ -292,7 +357,7 @@ def make(kind: str, risk: str, screens: list[str], ask: str, evidence: str, how:
          source: str, ident: str, **extra: Any) -> dict[str, Any]:
     item = {"id": ident, "kind": kind, "risk": risk, "screens": sorted(set(screens)),
             "ask": short(ask), "evidence": evidence, "how_to_record": how, "source": source,
-            "status": "waiting"}
+            "status": "waiting", "start": None, "due": None}
     item.update(extra)
     return item
 
@@ -423,7 +488,8 @@ def erratum_items(project: Project, names: ScreenNames) -> list[dict[str, Any]]:
                f"`{project.rel(path)}`; if it is wrong, add a new erratum instead")
         evidence = f"{page} {ident}; affects " + "; ".join(norm(a) for a in affected) if affected else f"{page} {ident}"
         items.append(make("erratum", risk, names.in_text(" ".join(affected)), ask, short(evidence, 300), how,
-                          project.rel(path), f"erratum:{ident}", source_id=ident))
+                          project.rel(path), f"erratum:{ident}", source_id=ident,
+                          **project.deadline("erratum", entry.get("created_at"), entry.get("due"))))
     return items
 
 
@@ -441,6 +507,7 @@ def coding_items(project: Project) -> list[dict[str, Any]]:
         for header, rows in tables(read_text(path), re.compile(r"Pending Answers", re.I)):
             i_no, i_q = column(header, "#"), column(header, "question")
             i_track, i_to, i_status = column(header, "track"), column(header, "asked to"), column(header, "status")
+            i_on, i_due = column(header, "asked on"), column(header, "due")
             for number, cells in rows:
                 question = cell(cells, i_q)
                 status = norm(cell(cells, i_status)).casefold()
@@ -455,7 +522,8 @@ def coding_items(project: Project) -> list[dict[str, Any]]:
                                   f"{project.rel(path)} §7.1 row {row}",
                                   f"write the answer into `{project.rel(path)}` §7.1 row {row} and set its Status "
                                   "to `answered`; the coding stage then clears `blocked`",
-                                  project.rel(path), f"decision:{screen}:7.1#{row}"))
+                                  project.rel(path), f"decision:{screen}:7.1#{row}",
+                                  **project.deadline("decision", cell(cells, i_on), cell(cells, i_due))))
     return items
 
 
@@ -555,6 +623,7 @@ def issue_items(project: Project, known: set[str], names: ScreenNames) -> list[d
         i_no, i_type, i_title = column(header, "#"), column(header, "type"), column(header, "title")
         i_affects, i_status = column(header, "affects"), column(header, "status")
         i_next = column(header, "decision")
+        i_date, i_due = column(header, "date"), column(header, "due")
         for _number, cells in rows:
             row = norm(cell(cells, i_no))
             kind = norm(cell(cells, i_type)).casefold()
@@ -585,7 +654,55 @@ def issue_items(project: Project, known: set[str], names: ScreenNames) -> list[d
                               f"{project.rel(path)} #{row}",
                               f"set row #{row}'s Status in `{project.rel(path)}` to `resolved`, `deferred` or "
                               "`wont_fix`, with the decision and `Closed: YYYY-MM-DD` in Decision / Next step",
-                              project.rel(path), f"issue:#{row}"))
+                              project.rel(path), f"issue:#{row}",
+                              **project.deadline("issue", cell(cells, i_date), cell(cells, i_due))))
+    return items
+
+
+def external_items(project: Project, names: ScreenNames) -> list[dict[str, Any]]:
+    """`External_Dependencies.md` rows not `done`: an ask of another team a screen waits for."""
+    path = project.docs / DEPENDENCIES
+    if not path.is_file():
+        return []
+    where = project.rel(path)
+    registry = project.names()
+    items = []
+    for header, rows in tables(read_text(path), re.compile(r".")):
+        i_id, i_state = column(header, "id"), column(header, "state")
+        if i_id is None or i_state is None:
+            continue            # the Columns and State Vocabulary tables
+        i_party, i_ask = column(header, "party"), column(header, "ask")
+        i_from, i_blocks = column(header, "source decision"), column(header, "blocks")
+        i_sent, i_due, i_link = column(header, "sent on"), column(header, "due"), column(header, "link")
+        for _number, cells in rows:
+            ident = norm(cell(cells, i_id))
+            state = norm(cell(cells, i_state)).casefold()
+            if blank(ident) or "{{" in ident or state == DONE:
+                continue
+            party = norm(cell(cells, i_party)) or "the party named"
+            want = norm(cell(cells, i_ask))
+            origin = norm(cell(cells, i_from))
+            link = norm(cell(cells, i_link))
+            tokens = [norm(t) for t in re.split(r"[,;]", norm(cell(cells, i_blocks))) if not blank(t)]
+            screens = [names.of(t) if F_ID.fullmatch(t) else t for t in tokens]
+            dates = project.deadline("external", cell(cells, i_sent), cell(cells, i_due))
+            item = make("external", "medium", screens, "", "", "", where, f"external:{ident}",
+                        source_id=ident, **dates)
+            if (state == TO_SEND and any(s in registry for s in screens)) or project.overdue(item):
+                item["risk"] = "high"
+            since = f", sent {dates['start']}" if dates["start"] else ""
+            if state == TO_SEND:
+                item["ask"] = short(f"Send {ident} to {party}: {want}")
+                item["how_to_record"] = (f"send it, then set State to `sent` and `Sent on` to the date in `{where}` "
+                                         f"{ident}")
+            else:
+                item["ask"] = short(f"{ident} is with {party} ({state or 'no state'}{since}): {want}. "
+                                    "Is it on track?")
+                item["how_to_record"] = (f"when {party} delivers, set State to `done` in `{where}` {ident}; "
+                                         "put the date they commit to in `Due`")
+            item["evidence"] = (f"{where} {ident}" + (f"; from {origin}" if not blank(origin) else "")
+                                + (f"; {link}" if not blank(link) else ""))
+            items.append(item)
     return items
 
 
@@ -620,17 +737,20 @@ def order_key(item: dict[str, Any]) -> tuple[Any, ...]:
             (1, "") if not screens else (0, screens[0]), _natural(item["id"]))
 
 
-def build(project: Project) -> dict[str, Any]:
+def build(project: Project, as_of: date | None = None) -> dict[str, Any]:
+    if as_of is not None:
+        project.as_of = as_of
     names = ScreenNames(project)
     decisions, known = decision_items(project, names)
     items = decisions + erratum_items(project, names) + coding_items(project) + plan_items(project, known)
     items += test_items(project) + acceptance_items(project) + issue_items(project, known, names)
+    items += external_items(project, names)
     items += blocked_items(project, items)
     items.sort(key=order_key)
     counts = {"total": len(items),
               "by_risk": {r: sum(1 for i in items if i["risk"] == r) for r in RISKS},
               "by_kind": {k: sum(1 for i in items if i["kind"] == k) for k in KINDS}}
-    return {"generated_by": GENERATED_BY, "version": 1,
+    return {"generated_by": GENERATED_BY, "version": 1, "as_of": project.as_of.isoformat(),
             "workspace": project.ak_root() if project.workspace is not None else None,
             "counts": counts, "risk_rules": RISK_RULES, "items": items, "notes": project.notes}
 
@@ -647,24 +767,36 @@ def _cell(text: Any) -> str:
     return str(text).replace("|", chr(92) + "|").replace("\n", " ")
 
 
+def status_of(item: dict[str, Any], as_of: str) -> str:
+    """What the page shows: `overdue`, `due YYYY-MM-DD`, or the item's status when it has no due."""
+    if not item.get("due"):
+        return item["status"]
+    return "overdue" if as_of > item["due"] else f"due {item['due']}"
+
+
 def render_markdown(queue: dict[str, Any]) -> str:
     out = [f"{GENERATED_MD} -->", "# Review queue", "", "Audience: person", "", count_line(queue), ""]
     if queue["items"]:
+        as_of = queue["as_of"]
+        late = sum(1 for i in queue["items"] if status_of(i, as_of) == "overdue")
         out += ["Everything in this project that waits on a person, highest risk first. Each row is one "
                 "question; answer it where *How to record* says, then run `review_queue.py` again. "
                 "Paths are relative to the repository root. "
-                "Generated from the sources named in *Source*; edit those, not this file. It has no "
-                "date on purpose: the same state gives the same file.", ""]
-        overdue = any(i["status"] != "waiting" for i in queue["items"])
+                "Generated from the sources named in *Source*; edit those, not this file. "
+                f"Due dates are counted as of {as_of} (`--as-of`): the same state and the same day give "
+                "the same file.", ""]
+        if late:
+            out += [f"{late} {'is' if late == 1 else 'are'} overdue as of {as_of}.", ""]
+        dated = any(i.get("due") for i in queue["items"])
         head = ["#", "Risk", "Kind", "Screen", "Ask", "Evidence", "How to record", "Source"]
-        if overdue:
+        if dated:
             head.append("Status")
         out += ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
         for number, item in enumerate(queue["items"], 1):
             row = [str(number), item["risk"], item["kind"], ", ".join(item["screens"]) or "—",
                    item["ask"], item["evidence"], item["how_to_record"], item["source"]]
-            if overdue:
-                row.append(item["status"])
+            if dated:
+                row.append(status_of(item, as_of))
             out.append("| " + " | ".join(_cell(v) for v in row) + " |")
         out.append("")
         by_kind = [f"{n} {k}" for k, n in queue["counts"]["by_kind"].items() if n]
@@ -700,12 +832,17 @@ def main(argv: list[str] | None = None) -> int:
                                                       "holding PROJECT_CONFIG.md")
     parser.add_argument("--workspace", type=Path, help="the investigation workspace; default AK_RUN_DIR, "
                                                        "else the repository's parent when it is one")
+    parser.add_argument("--as-of", help="the day overdue is counted against, YYYY-MM-DD; default today")
     parser.add_argument("--dry-run", action="store_true", help="print the count line and write nothing")
     parser.add_argument("--force", action="store_true", help="overwrite a queue file this script did not write")
     args = parser.parse_args(argv)
+    as_of = as_date(args.as_of) if args.as_of and DATE.fullmatch(args.as_of.strip()) else None
+    if args.as_of is not None and as_of is None:
+        print(f"review_queue: --as-of wants a date, YYYY-MM-DD; got {args.as_of!r}", file=sys.stderr)
+        return 2
     try:
         project = Project(args.repo, args.docs_dir, args.workspace)
-        queue = build(project)
+        queue = build(project, as_of)
     except CannotRun as problem:
         print(f"review_queue: {problem}", file=sys.stderr)
         return 2

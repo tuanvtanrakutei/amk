@@ -1,8 +1,9 @@
 """The review queue lists what waits on a person, from every source that records it (A111).
 
 Each source has a test that fails without its reader; the page is sorted by risk, kind and
-screen; the same state gives the same bytes; an empty queue says so in one line; and a queue
-file the script did not write is never overwritten without --force.
+screen; the same state and the same --as-of give the same bytes; an empty queue says so in one
+line; and a queue file the script did not write is never overwritten without --force. A114 adds
+asks of other teams (`external`) and due dates counted from a source's own start date.
 
 The workspace and repository are invented, in tmp dirs.
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -133,6 +135,29 @@ ISSUES = """# Known Issues
 """
 
 
+DEPENDENCIES = """# External Dependencies
+
+Audience: person
+
+## State Vocabulary
+
+| Value | Meaning |
+|---|---|
+| `to-send` | not yet sent |
+| `done` | delivered |
+
+## Dependencies
+
+| ID | Party | Ask | Source decision | Blocks | State | Sent on | Due | Link |
+|---|---|---|---|---|---|---|---|---|
+| EXT-05 | Stock team | rename a column | Q1 | `OrderEntry` | done | 2026-01-01 | | |
+| EXT-04 | Billing system | widen a code field | Q7 | `OrderEntry` | in-progress | 2026-01-02 | 2026-02-01 | |
+| EXT-03 | Billing system | export the tax table | Q7 | `OrderList` | sent | 2026-01-02 | | https://example.invalid/3 |
+| EXT-02 | Stock team | open the stock interface | RD-02 | Archive | to-send | | | |
+| EXT-01 | Stock team | add a reorder flag | Q1 | F-001 | to-send | | | |
+"""
+
+
 def queue_item(ident: str, bucket: str, *, posture: str = "PROCEEDS_ON_DEFAULT", kind: str = "FACT",
                party: str = "Sales office", blocks: list | None = None, severity: str | None = None,
                default: dict | None = None, **extra: object) -> dict:
@@ -207,8 +232,18 @@ def run(repo: Path, *extra: str) -> subprocess.CompletedProcess:
                           capture_output=True, text=True, encoding="utf-8")
 
 
-def queue_of(repo: Path) -> dict:
-    return rq.build(rq.Project(repo, None, None))
+def queue_of(repo: Path, as_of: str | None = None) -> dict:
+    return rq.build(rq.Project(repo, None, None), date.fromisoformat(as_of) if as_of else None)
+
+
+def with_dependencies(tmp_path: Path, config: str = "") -> Path:
+    repo = build_project(tmp_path)
+    (repo / "docs" / rq.DEPENDENCIES).write_text(DEPENDENCIES, encoding="utf-8")
+    if config:
+        path = repo / "docs" / "PROJECT_CONFIG.md"
+        path.write_text(path.read_text(encoding="utf-8") + f"| `REVIEW_DUE_DAYS` | `{config}` | |\n",
+                        encoding="utf-8")
+    return repo
 
 
 def by_id(queue: dict) -> dict[str, dict]:
@@ -304,6 +339,94 @@ def test_a_blocked_track_nothing_explains(tmp_path: Path) -> None:
     assert f"issue:registry:{ENTRY}" not in items               # its coding record names the blocker
 
 
+# --- external dependencies and due dates (A114) -------------------------------------
+
+def test_an_unsent_ask_blocking_a_registry_screen_is_high(tmp_path: Path) -> None:
+    item = by_id(queue_of(with_dependencies(tmp_path), "2026-01-09"))["external:EXT-01"]
+    assert item["kind"] == "external" and item["risk"] == "high"
+    assert item["screens"] == [MENU]                            # F-001, named as the registry names it
+    assert item["ask"].startswith("Send EXT-01 to Stock team") and "`sent`" in item["how_to_record"]
+
+
+def test_an_unsent_ask_blocking_no_registry_screen_is_medium(tmp_path: Path) -> None:
+    item = by_id(queue_of(with_dependencies(tmp_path), "2026-01-09"))["external:EXT-02"]
+    assert item["risk"] == "medium" and item["screens"] == ["Archive"]
+
+
+def test_a_sent_ask_is_medium_until_it_is_overdue(tmp_path: Path) -> None:
+    repo = with_dependencies(tmp_path)
+    assert by_id(queue_of(repo, "2026-01-12"))["external:EXT-03"]["risk"] == "medium"    # due that day
+    assert by_id(queue_of(repo, "2026-01-13"))["external:EXT-03"]["risk"] == "high"      # a day late
+    assert "https://example.invalid/3" in by_id(queue_of(repo))["external:EXT-03"]["evidence"]
+
+
+def test_done_rows_are_not_listed(tmp_path: Path) -> None:
+    items = by_id(queue_of(with_dependencies(tmp_path), "2026-01-09"))
+    assert "external:EXT-05" not in items
+    assert sorted(i for i in items if i.startswith("external:")) == [f"external:EXT-0{n}" for n in (1, 2, 3, 4)]
+
+
+def test_the_default_due_and_a_due_the_source_gives(tmp_path: Path) -> None:
+    items = by_id(queue_of(with_dependencies(tmp_path), "2026-01-09"))
+    assert (items["external:EXT-03"]["start"], items["external:EXT-03"]["due"]) == ("2026-01-02", "2026-01-12")
+    assert items["external:EXT-04"]["due"] == "2026-02-01"      # its own Due wins
+    assert items["erratum:E-01"]["due"] == "2026-01-06"         # created_at + 5
+    assert items[f"decision:{ENTRY}:7.1#1"]["due"] == "2026-01-08"   # Asked on + 3
+    assert items["issue:#2"]["due"] == "2026-01-10"             # Date + 5
+
+
+def test_project_config_sets_the_days_per_kind(tmp_path: Path) -> None:
+    items = by_id(queue_of(with_dependencies(tmp_path, "external=20, test_sign-off=2, nonsense"), "2026-01-09"))
+    assert items["external:EXT-03"]["due"] == "2026-01-22"
+    assert items["external:EXT-04"]["due"] == "2026-02-01"      # the source's Due still wins
+    assert items["erratum:E-01"]["due"] == "2026-01-06"         # a kind left out keeps its default
+
+
+def test_not_applicable_turns_the_defaults_off(tmp_path: Path) -> None:
+    items = by_id(queue_of(with_dependencies(tmp_path, "n/a"), "2026-01-09"))
+    assert items["external:EXT-03"]["due"] is None and items["external:EXT-03"]["start"] == "2026-01-02"
+    assert items["external:EXT-04"]["due"] == "2026-02-01"
+
+
+def test_a_bad_due_days_entry_is_a_note(tmp_path: Path) -> None:
+    notes = " ".join(queue_of(with_dependencies(tmp_path, "external=ten"))["notes"])
+    assert "`external=ten`" in notes
+
+
+def test_an_erratum_due_field_overrides_the_default(tmp_path: Path) -> None:
+    repo = build_project(tmp_path)
+    data = errata()
+    data["entries"][0]["due"] = "2026-03-01"
+    (repo.parent / "output" / "registers" / f"{APP}_Errata.json").write_text(json.dumps(data), encoding="utf-8")
+    assert by_id(queue_of(repo))["erratum:E-01"]["due"] == "2026-03-01"
+
+
+def test_no_start_date_gives_no_due_date(tmp_path: Path) -> None:
+    items = by_id(queue_of(with_dependencies(tmp_path), "2026-12-31"))
+    for ident in ("external:EXT-01", "decision:Q1", f"test:{LIST}:4.4#1", f"review:{LIST}"):
+        assert (items[ident]["start"], items[ident]["due"]) == (None, None), ident
+    assert items["external:EXT-02"]["risk"] == "medium"         # no due, so never overdue
+    assert all(i["due"] is None for i in items.values() if i["kind"] == "plan approval")
+
+
+def test_the_page_says_overdue_or_due_as_of_the_day_given(tmp_path: Path) -> None:
+    repo = with_dependencies(tmp_path)
+    assert run(repo, "--as-of", "2026-01-09").returncode == 0
+    page = (repo / "docs" / rq.PAGE).read_text(encoding="utf-8")
+    assert next(line for line in page.split("\n") if "Send EXT-01" in line).endswith("| waiting |")
+    ext3 = next(line for line in page.split("\n") if "EXT-03 is with" in line)
+    assert ext3.endswith("| due 2026-01-12 |")
+    assert "| overdue |" in page and "overdue as of 2026-01-09" in page    # E-01 was due 2026-01-06
+    assert run(repo, "--as-of", "2026-01-13").returncode == 0
+    page = (repo / "docs" / rq.PAGE).read_text(encoding="utf-8")
+    assert next(line for line in page.split("\n") if "EXT-03 is with" in line).endswith("| overdue |")
+
+
+def test_a_bad_as_of_cannot_run(tmp_path: Path) -> None:
+    result = run(build_project(tmp_path), "--as-of", "2026-13-01")
+    assert result.returncode == 2 and "--as-of" in result.stderr
+
+
 # --- the page ---------------------------------------------------------------------
 
 def test_sorted_by_risk_then_kind_then_screen(tmp_path: Path) -> None:
@@ -329,13 +452,18 @@ def test_page_starts_with_the_count_line(tmp_path: Path) -> None:
     assert page.count("\n| ") == c["total"] + 1                 # one header row, one row per item
 
 
-def test_same_state_gives_the_same_bytes(tmp_path: Path) -> None:
+def test_same_state_and_as_of_give_the_same_bytes(tmp_path: Path) -> None:
     repo = build_project(tmp_path)
-    assert run(repo).returncode == 0
+    (repo / "docs" / rq.DEPENDENCIES).write_text(DEPENDENCIES, encoding="utf-8")
+    assert run(repo, "--as-of", "2026-01-09").returncode == 0
     first = [(repo / "docs" / n).read_bytes() for n in (rq.PAGE, rq.DATA)]
-    assert run(repo).returncode == 0
+    assert run(repo, "--as-of", "2026-01-09").returncode == 0
     assert [(repo / "docs" / n).read_bytes() for n in (rq.PAGE, rq.DATA)] == first
-    assert all(b"\r" not in b and b"2026-10" not in b for b in first)
+    assert all(b"\r" not in b for b in first)
+    items = json.loads(first[1])["items"]                       # the JSON carries dates, never the verdict
+    assert all(i["status"] == "waiting" and "overdue" not in i for i in items)
+    assert run(repo, "--as-of", "2026-03-01").returncode == 0
+    assert (repo / "docs" / rq.PAGE).read_bytes() != first[0]
 
 
 def test_empty_queue_says_so_in_one_line(tmp_path: Path) -> None:

@@ -107,6 +107,7 @@ manual this project has to change is kept here under the same name, and is read 
 | `Screens_Registry.md` | here | Everyone | Screen ↔ key ↔ module ↔ priority ↔ status |
 | `Known_Issues.md` | here | Everyone | Cross-screen bugs, decisions, Q&A log |
 | `Known_Issues_Archive.md` | here | Everyone | Closed rows aged out of the active log |
+| `External_Dependencies.md` | here | Everyone | Asks of other teams or systems, and what each blocks |
 | `{{TABLE_MAP_DOC}}` | here | Developer | DB schema, table and field names |
 
 ### Per-screen folders (stage-by-stage artifacts)

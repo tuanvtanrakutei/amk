@@ -63,6 +63,9 @@ entry:
       entry waits on a person, and the modernize repo's review queue lists it
       (`modernize/scripts/review_queue.py`, A111).
     acknowledged_on: "The date that person confirmed it, YYYY-MM-DD."
+    due: >
+      The date the acknowledgement is due, YYYY-MM-DD. Without it the review queue
+      counts `REVIEW_DUE_DAYS` from `created_at` (A114).
 
 # ---------------------------------------------------------------------------
 # Why the claim was wrong. Recording this is what stops the class recurring;
