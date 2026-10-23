@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.24.0] - 2026-10-23
+
+One pull request (#147). **A review queue: one page of what waits on a person** (A111).
+
+### Added
+
+- `/ak:review-queue` and `modernize/scripts/review_queue.py` write `docs/Review_Queue.md` (read by
+  a person) and `docs/review_queue.json` (read by agents) in the modernize repo. Each item gives
+  its kind, risk, screens, the question to answer, the evidence, and how to record the answer.
+  Items are sorted by risk. The queue collects:
+  - open decision-queue items and pending answers;
+  - errata nobody has acknowledged;
+  - open plan decisions;
+  - empty Tier 3 sign-offs;
+  - pending final acceptances;
+  - open business issues;
+  - blocked screen tracks.
+- The errata contract has optional `acknowledged_by` / `acknowledged_on` fields. An erratum stays in
+  the queue until someone acknowledges it.
+- `/ak:screen-status` quotes the queue's count line.
+
 ## [2.23.0] - 2026-10-23
 
 One pull request (#143). **Two output layers, a decisions page, and checks that keep phase
