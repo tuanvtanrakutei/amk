@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Queue"
+  short_description: "One page of everything in the project that waits on a person"
+  default_prompt: "Write the project's review queue (docs/Review_Queue.md and docs/review_queue.json): open decisions, unacknowledged errata, undecided plan rows, unsigned manual tests, pending acceptance, issue rows needing a decision. Decide nothing."

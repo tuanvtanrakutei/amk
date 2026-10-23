@@ -35,6 +35,12 @@ coding record, no test instruction → `/ak:test-screen`; tests, no review → `
 
 Then, for a single screen, add what would block that next stage.
 
+Last, one line on what waits on a person: run
+`python "${CLAUDE_PLUGIN_ROOT}/modernize/scripts/review_queue.py" --repo <repo> --dry-run`, which
+writes nothing, and quote its first line ("N items wait on a person: H high ..."). Point at
+`/ak:review-queue` for the page. Skip the line if the script cannot run; do not write the queue
+from here.
+
 ## Say what the status does not tell you
 
 Two distinctions matter more than the words themselves, and a status table hides both:
