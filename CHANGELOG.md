@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.23.0] - 2026-10-23
+
+One pull request (#143). **Two output layers, a decisions page, and checks that keep phase
+documents readable** (A110; first slice of A108).
+
+### Added
+
+- `{APP}_Decisions.md`, written by `$ak decisions`. It shows one row per decided item with the
+  decision in force only, the evidence id behind it, and what it replaces. Superseded decisions
+  are listed in a footnote. A decision-record row shows the record's own Decision and its
+  meaning.
+- Output layers. Phase documents, the errata page and the question list are read by a person;
+  registers and catalogues are read by an agent; the decisions page is read by both. Each page
+  declares its reader with an `Audience:` line.
+- Phase templates:
+  - the must-not list holds at most 7 items;
+  - one `Decided for the replacement` table;
+  - a `Decision` column in each risk table;
+  - compact carried-forward tables;
+  - Phase 5 opens with a developer hand-off;
+  - Phase 2's per-screen section points to the catalogues for fields and controls;
+  - writing order: prose first, then tables, then diagrams;
+  - decisions are cited by item code;
+  - evidence ids are links to anchored Evidence Register rows.
+- Conformance warnings:
+  - `audience_declared`, `must_not_list_size`, `citation_density` (one evidence id per 40
+    words), `no_decision_history` and `evidence_links`;
+  - `decisions_agree`: a risk row's decision must match the register, and a carried-forward
+    row must not show an item open after the register closed it.
+
+### Changed
+
+- The errata page and the question list carry an `Audience: person` line. Re-run
+  `$ak errata` to refresh an existing page.
+
 ## [2.22.2] - 2026-10-22
 
 One pull request (#141). **The screen catalogue keeps a report's own id, counts every event
